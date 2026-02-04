@@ -264,12 +264,15 @@ with tabs[0]:
             
 with tabs[1]:
     st.subheader("📋 전체 예약 내역 관리")
-    if not df_r.empty:
-        c1, c2, c3 = st.columns(3)
-        date_range = c1.date_input("날짜 범위", [datetime.now().date(), datetime.now().date() + timedelta(days=7)], key="mgr_d")
-        search_term = c2.text_input("검색 (성함/상품명)", key="mgr_s")
-        sort_order = c3.selectbox("정렬", ["최신 날짜순", "오래된 날짜순", "시간순"], key="mgr_o")
 
+    if not df_r.empty:
+        # --- 🔍 필터 영역 (기존 유지) ---
+        col1, col2, col3 = st.columns(3)
+        date_range = col1.date_input("날짜 범위", [datetime.now().date(), datetime.now().date() + timedelta(days=7)], key="mgr_d_v2")
+        search_term = col2.text_input("검색 (성함/상품명)", key="mgr_s_v2")
+        sort_order = col3.selectbox("정렬", ["최신 날짜순", "오래된 날짜순", "시간순"], key="mgr_o_v2")
+
+        # --- ⚙️ 필터링 및 정렬 로직 ---
         f_df = df_r.copy()
         if len(date_range) == 2:
             f_df['날짜'] = pd.to_datetime(f_df['날짜']).dt.date
@@ -279,8 +282,27 @@ with tabs[1]:
         
         asc = [False, False] if sort_order == "최신 날짜순" else [True, True]
         f_df = f_df.sort_values(by=['날짜', '시간'] if sort_order != "시간순" else ['시간', '날짜'], ascending=asc)
-        st.dataframe(f_df, use_container_width=True, hide_index=True)
-    else: st.info("내역 없음")
+
+        # --- 🗑️ 예약 내역 및 삭제 버튼 ---
+        st.write("---")
+        for i, row in f_df.iterrows():
+            # 모바일에서도 보기 좋게 한 줄씩 배치 ㅋ
+            c1, c2, c3 = st.columns([7, 1, 2])
+            with c1:
+                st.write(f"**{row['날짜']} {row['시간']}** | {row['성함']} ({row['상품명']})")
+                if row['특이사항']: st.caption(f"📝 {row['특이사항']}")
+            
+            with c3:
+                # 💡 삭제 버튼 (실수 방지를 위해 작은 버튼으로 ㅋ)
+                if st.button("🗑️ 삭제", key=f"del_res_{i}", use_container_width=True):
+                    # manage_gsheet에 삭제 액션 전달 (성함과 날짜, 시간을 키로 활용)
+                    if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": row['날짜'], "time": row['시간']}):
+                        st.toast(f"{row['성함']} 님 예약 삭제 완료!", icon="🗑️")
+                        st.cache_data.clear()
+                        st.rerun()
+        st.write("---")
+    else:
+        st.info("등록된 예약 내역이 없습니다.")
 
 with tabs[2]:
     st.subheader("👥 회원 관리")
