@@ -65,15 +65,27 @@ def format_birth(b):
 # 📅 예약 등록 팝업 (회원 검색 및 날짜 보정 완료)
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
-    # 주간 달력에서 넘어온 '2026-02-06T10:00:00' 형태에서 날짜와 시간 추출 ㅋ
-    dt_part = clicked_date.split("T")
-    pure_date = dt_part[0] # "2026-02-06"
-    pure_time = dt_part[1][:5] # "10:00"
+    # 💡 어떤 형식이 와도 안전하게 날짜/시간 추출
+    try:
+        # T를 기준으로 날짜와 시간 분리
+        dt_parts = clicked_date.replace("Z", "").split("T")
+        date_str = dt_parts[0]
+        time_str = dt_parts[1][:5] # "10:00:00"이든 "10:00"이든 앞에서 5글자만!
+        
+        # 일단 기준 시간을 만들고
+        base_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+        
+        # 🌏 시차 보정: 주간 클릭 시 9시간 밀리는 현상 해결 (+9시간)
+        kor_dt = base_dt + timedelta(hours=9)
+        
+        fixed_date = kor_dt.date()
+        fixed_time = kor_dt.time()
+    except Exception as e:
+        # 혹시라도 에러 나면 오늘 날짜/시간으로 비상 대피 ㅋ
+        fixed_date = datetime.now().date()
+        fixed_time = datetime.now().time()
 
-    fixed_date = datetime.strptime(pure_date, "%Y-%m-%d").date()
-    fixed_time = datetime.strptime(pure_time, "%H:%M").time()
-
-    st.write(f"📅 선택된 시간: **{pure_date} {pure_time}**")
+    st.write(f"📅 선택된 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
 
     # --- 회원 검색 로직 ---
     search_q = st.text_input("👤 회원 검색", placeholder="성함 입력")
@@ -88,7 +100,25 @@ def add_res_modal(clicked_date, m_list):
 
     with st.form("res_real_form", clear_on_submit=True):
         res_date = st.date_input("예약 날짜", value=fixed_date)
-        res_time = st.time_input("시간", value=fixed_time) # 클릭한 시간이 자동으로 들어감! ㅋ
+        
+        # --- ⏰ 시간 선택 드롭다운 (10:00 ~ 18:00 제한) ---
+        # 1. 10시부터 18시까지 30분 단위 리스트 생성
+        time_slots = []
+        for hour in range(10, 19): # 10시부터 18시까지
+            time_slots.append(f"{hour:02d}:00")
+            if hour != 18: # 18:30은 제외하고 싶다면 조건 추가
+                time_slots.append(f"{hour:02d}:30")
+        
+        # 2. 현재 클릭한 시간이 리스트에 있으면 해당 시간을 기본값으로, 없으면 10:00으로 설정
+        click_time_str = fixed_time.strftime("%H:%M")
+        if click_time_str not in time_slots:
+            default_index = 0 # 10:00
+        else:
+            default_index = time_slots.index(click_time_str)
+            
+        res_time_str = st.selectbox("시간 선택 (10:00~18:00)", options=time_slots, index=default_index)
+        # ----------------------------------------------
+
         item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
         coun = st.text_input("상담사", value=default_counselor)
         etc = st.text_area("특이사항")
@@ -97,7 +127,8 @@ def add_res_modal(clicked_date, m_list):
             if name == "선택하세요":
                 st.error("회원을 선택해 주세요!")
             else:
-                if manage_gsheet("reservations", [name, res_date.strftime("%Y-%m-%d"), item, coun, f"[{res_time.strftime('%H:%M')}] {etc}"]):
+                # 저장할 때 res_time_str(문자열)을 그대로 사용하면 됩니다.
+                if manage_gsheet("reservations", [name, res_date.strftime("%Y-%m-%d"), item, coun, f"[{res_time_str}] {etc}"]):
                     st.cache_data.clear()
                     st.rerun()
 
@@ -198,7 +229,7 @@ with tabs[0]:
             
             # ✨ 중요: '기타' 열에 저장된 [10:00] 형태의 시간 정보를 추출
             # 주간 시간표(timeGrid)는 시간이 있어야 해당 칸에 표시됩니다. ㅋ
-            res_time = "10:00" # 기본값
+            res_time = str(r['시간']) if '시간' in r else "10:00" # 기본값
             time_match = re.search(r'\[(\d{2}:\d{2})\]', str(r['기타']))
             if time_match:
                 res_time = time_match.group(1)
@@ -249,20 +280,84 @@ with tabs[0]:
             key="calendar_main_v4" # 캐시 꼬임 방지를 위해 키 변경 ㅋ
         )
 
-        # 4. 날짜 클릭 시 처리 (주간 달력에서만 팝업 오픈)
+        # 4. 날짜 클릭 시 처리 (시차 보정 버전)
     if state.get("dateClick"):
-        raw_clicked_date = str(state["dateClick"]["date"])
+        raw_date = str(state["dateClick"]["date"]) # 예: "2026-02-04T11:00:00Z"
         
-        # 'T'가 포함되어 있으면 시간 정보가 있는 '주간' 클릭입니다. ㅋ
-        if "T" in raw_clicked_date:
-            add_res_modal(raw_clicked_date, df_m)
-        else:
-            # 'T'가 없는 '월간' 클릭일 때만 안내 문구를 띄웁니다. ㅋ
-            # 아까 에러 났던 부분이니 아주 깔끔하게 한 줄로 작성했습니다!
+        # 💡 T 뒤에 오는 시간을 확인 (시차 때문에 꼬인 시간 그대로 가져옴)
+        # 보통 월간은 "T00:00:00" 혹은 시차 보정된 "T09:00:00", "T13:00:00" 등으로 옴
+        # 주간은 클릭한 시간 그대로 옴
+        
+        # 시간 부분만 추출 (T 뒤의 8글자)
+        clicked_time = raw_date.split("T")[1][:8] if "T" in raw_date else "00:00:00"
+        
+        # 1. 월간 클릭 차단: 시간이 정각(00시)이거나 특정 기본값이면 월간으로 간주
+        if clicked_time == "00:00:00" or not "T" in raw_date:
             st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
+        else:
+            # 2. 주간 클릭: 시차 계산하지 말고 '보이는 글자 그대로' 전달!
+            # 11:00 클릭 -> 서버에 02:00로 전달됨 -> 이걸 다시 11:00로 복원하는 마법 ㅋ
+            
+            # 주간 뷰에서는 클릭한 칸의 '정확한 시간'이 데이터에 포함되어 있습니다.
+            # 이 데이터를 add_res_modal에 그대로 넘겨서 처리합니다.
+            add_res_modal(raw_date, df_m)
             
 with tabs[1]:
-    st.dataframe(df_r, use_container_width=True, hide_index=True)
+    st.subheader("📋 전체 예약 내역 관리")
+
+    if not df_r.empty:
+        # --- 🔍 필터 및 정렬 옵션 ---
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # 1. 날짜 범위 필터
+            date_range = st.date_input("날짜 범위 선택", [datetime.now().date(), datetime.now().date() + timedelta(days=7)])
+        
+        with col2:
+            # 2. 검색어 필터 (성함 또는 상품명)
+            search_term = st.text_input("검색 (성함/상품명)", placeholder="검색어 입력...")
+
+        with col3:
+            # 3. 정렬 순서 선택
+            sort_order = st.selectbox("정렬 기준", ["최신 날짜순", "오래된 날짜순", "시간순(오늘 기준)"])
+
+        # --- ⚙️ 데이터 필터링 로직 ---
+        filtered_df = df_r.copy()
+
+        # 날짜 필터 적용
+        if len(date_range) == 2:
+            start_date, end_date = date_range
+            filtered_df['날짜'] = pd.to_datetime(filtered_df['날짜']).dt.date
+            filtered_df = filtered_df[(filtered_df['날짜'] >= start_date) & (filtered_df['날짜'] <= end_date)]
+
+        # 검색어 필터 적용
+        if search_term:
+            filtered_df = filtered_df[
+                filtered_df['성함'].str.contains(search_term, na=False) | 
+                filtered_df['상품명'].str.contains(search_term, na=False)
+            ]
+
+        # --- ⏰ 시간순 정렬을 위한 시간 추출 로직 ---
+        # '기타' 열의 [10:00]에서 시간을 뽑아 정렬용 임시 컬럼 생성
+        filtered_df['정렬용시간'] = filtered_df['기타'].str.extract(r'\[(\d{2}:\d{2})\]').fillna("00:00")
+
+        # 정렬 로직 부분
+        if sort_order == "최신 날짜순":
+            filtered_df = filtered_df.sort_values(by=['날짜', '시간'], ascending=[False, False])
+        elif sort_order == "오래된 날짜순":
+            filtered_df = filtered_df.sort_values(by=['날짜', '시간'], ascending=[True, True])
+        else: # 시간순
+            filtered_df = filtered_df.sort_values(by=['시간', '날짜'], ascending=[True, True])
+
+        # 불필요한 임시 컬럼 삭제 후 출력
+        display_df = filtered_df.drop(columns=['정렬용시간'])
+        
+        # 데이터프레임 출력
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        
+        st.write(f"💡 총 **{len(display_df)}건**의 예약이 검색되었습니다.")
+    else:
+        st.info("등록된 예약 내역이 없습니다.")
 
 with tabs[2]: # 회원 관리 탭
     st.subheader("👥 회원 관리")
