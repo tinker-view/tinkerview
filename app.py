@@ -54,28 +54,22 @@ def manage_gsheet(sheet, row=None, action="add", key=None, extra=None):
         f_row = []
         for v in (row or []):
             val = str(v).strip()
-            
-            # 💡 [핵심 로직] 
-            # 1. 값이 비어있으면 그냥 빈값
             if not val:
                 f_row.append("")
-            # 2. '0'으로 시작하는 숫자(연락처 등)는 무조건 따옴표 붙임 (0 보존)
+            # 💡 연락처처럼 0으로 시작하는 경우만 따옴표 보호!
             elif val.isdigit() and val.startswith("0"):
                 f_row.append(f"'{val}")
-            # 3. 그 외의 순수 숫자(순번, 생년월일 등)는 따옴표 없이 숫자로 보냄
+            # 💡 그 외 모든 숫자(순번, 생년월일, 최초방문일 등)는 따옴표 없이 숫자로! ㅋ
             elif val.isdigit():
                 f_row.append(val)
-            # 4. 문자가 섞인 경우 따옴표 붙여서 텍스트로 보호
             else:
                 f_row.append(f"'{val}")
         
         params = {"sheet": sheet, "values": json.dumps(f_row), "action": action, "key": key}
         if extra: params.update(extra)
-        
         r = requests.get(DEPLOY_URL, params=params, timeout=15)
         return "Success" in r.text
-    except: 
-        return False
+    except: return False
     
 # 3. 유틸리티 및 팝업
 def format_phone(p):
@@ -190,41 +184,33 @@ def show_detail(m_info, h_df):
 
     t_v, t_s, t_e = st.tabs(["🔍 상세조회", "💰 매출등록", "✏️ 정보수정"])
     
-    # --- 1. 상세조회 (인터페이스 대수술 ㅋ) ---
     with t_v:
-        # 👑 상단 이름 바
+        # 상단 타이틀
         st.markdown(f"""
-            <div style="background-color:#1E90FF; padding:12px; border-radius:8px; margin-bottom:15px; text-align:center;">
-                <h3 style="margin:0; color:white;">👑 {m_info['성함']} <span style="font-size:14px; opacity:0.8;">회원님</span></h3>
+            <div style="background-color:#1E90FF; padding:10px; border-radius:8px; margin-bottom:15px; text-align:center;">
+                <h3 style="margin:0; color:white;">👑 {m_info['성함']} <span style="font-size:14px; opacity:0.8;">회원님 정보</span></h3>
             </div>
         """, unsafe_allow_html=True)
 
-        # 📋 핵심 요약 카드 (가독성 최우선 ㅋ)
+        # 📋 모든 정보를 하나로 묶은 통합 정보 카드 ㅋ
         st.markdown(f"""
-            <div style="background-color:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #dee2e6; line-height:1.8;">
-                <span style="color:#666;">🔢 순번:</span> <b>{m_info['순번']}번</b> &nbsp; | &nbsp;
-                <span style="color:#666;">🚻 성별:</span> <b>{m_info['성별']}</b> &nbsp; | &nbsp;
-                <span style="color:#666;">🎂 생년:</span> <b>{format_birth(m_info['생년월일'])}</b> &nbsp; | &nbsp;
-                <span style="color:#666;">🗓️ 최초방문:</span> <b>{m_info['최초방문일']}</b>
+            <div style="background-color:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #dee2e6; line-height:2.2;">
+                <p style="margin:0;"><b>🔢 순번:</b> {m_info['순번']}번</p>
+                <p style="margin:0;"><b>🚻 성별:</b> {m_info['성별']}</p>
+                <p style="margin:0;"><b>🎂 생년:</b> {format_birth(m_info['생년월일'])}</p>
+                <p style="margin:0;"><b>📅 최초방문:</b> {m_info['최초방문일']}</p>
+                <p style="margin:0;"><b>📞 연락처:</b> {format_phone(m_info['연락처'])}</p>
+                <p style="margin:0;"><b>🏠 주소:</b> {m_info['주소'] if m_info['주소'] else '-'}</p>
+                <p style="margin:0;"><b>👨‍🏫 담당상담사:</b> {m_info['상담사']}</p>
+                <p style="margin:0;"><b>🗓️ 최종 등록일:</b> {m_info['최초방문일']}</p>
             </div>
         """, unsafe_allow_html=True)
         
-        st.write("") 
-
-        # 🗂️ 상세 인포메이션 레이아웃
-        col_l, col_r = st.columns(2)
-        with col_l:
-            st.markdown(f"📱 **연락처**<br>{format_phone(m_info['연락처'])}", unsafe_allow_html=True)
-            st.markdown(f"👨‍🏫 **담당 상담사**<br>{m_info['상담사']}", unsafe_allow_html=True)
-        with col_r:
-            st.markdown(f"🏠 **주소**<br>{m_info['주소'] if m_info['주소'] else '-'}", unsafe_allow_html=True)
-            st.markdown(f"📅 **데이터 등록일**<br>{m_info['최초방문일']}", unsafe_allow_html=True)
-            
-        st.markdown("---")
+        st.write("")
         st.markdown(f"📝 **비고(특이사항)**")
         st.info(m_info['비고(특이사항)'] if m_info['비고(특이사항)'] else "입력된 특이사항이 없습니다.")
         
-        # 💰 매출 내역 리스트
+        st.divider()
         st.write("#### 💰 최근 매출 내역")
         if not h_df.empty:
             for i, r in h_df.iterrows():
@@ -233,8 +219,7 @@ def show_detail(m_info, h_df):
                 if cd.button("삭제", key=f"d_{i}"):
                     if manage_gsheet("schedules", action="delete_sales", key=m_info['성함'], extra={"date": r['날짜'], "item": r['상품명']}):
                         st.cache_data.clear(); st.rerun()
-        else: 
-            st.write("내역 없음")
+        else: st.write("내역 없음")
 
     # --- 2. 매출등록 ---
     with t_s:
@@ -266,39 +251,30 @@ def show_detail(m_info, h_df):
     # --- 3. 정보수정 (최초방문일 등 누락 방지 ㅋ) ---
     with t_e:
         with st.form("ef"):
-            st.write("#### 회원 정보 수정")
-            
-            # 레이아웃 정렬 ㅋ
+            st.write("#### ⚙️ 회원 정보 수정")
             c1, c2, c3 = st.columns([1, 2, 2])
             e_no = c1.text_input("순번", value=str(m_info['순번']))
             e_n = c2.text_input("성함", value=m_info['성함'])
             e_v = c3.text_input("최초방문일", value=m_info['최초방문일'])
             
             c4, c5 = st.columns(2)
-            raw_p = c4.text_input("연락처", value=m_info['연락처'])
-            e_p = re.sub(r'\D', '', raw_p) 
-            raw_b = c5.text_input("생년월일", value=m_info['생년월일'])
-            e_b = re.sub(r'\D', '', raw_b) 
+            e_p = re.sub(r'\D', '', c4.text_input("연락처", value=m_info['연락처']))
+            e_b = re.sub(r'\D', '', c5.text_input("생년월일", value=m_info['생년월일']))
             
             c6, c7 = st.columns([1, 3])
-            gender_options = ["남자", "여자"]
-            # 성별이 '남' 혹은 '여'로 저장되어 있을 경우를 위한 방어 로직 ㅋ
-            curr_gender = "남자" if "남" in str(m_info['성별']) else "여자"
-            e_g = c6.selectbox("성별", options=gender_options, index=gender_options.index(curr_gender))
+            g_opt = ["남자", "여자"]
+            curr_g = "남자" if "남" in str(m_info['성별']) else "여자"
+            e_g = c6.selectbox("성별", options=g_opt, index=g_opt.index(curr_g))
             e_a = c7.text_input("주소", value=m_info['주소'])
             
             e_c = st.text_input("상담사", value=m_info['상담사'])
             e_m = st.text_area("비고", value=m_info['비고(특이사항)'])
             
             if st.form_submit_button("✅ 정보 수정 완료"):
-                try:
-                    up_row = [e_no.strip(), e_n, e_p, e_b, e_g, e_a, e_v, e_c, e_m]
-                    if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
-                        st.success(f"✅ {e_n} 님 정보가 수정되었습니다!")
-                        st.cache_data.clear()
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"오류 발생: {e}")
+                up_row = [e_no.strip(), e_n, e_p, e_b, e_g, e_a, e_v, e_c, e_m]
+                if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
+                    st.success("수정 완료! ㅋ")
+                    st.cache_data.clear(); st.rerun()
 
 # 4. 메인 UI
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
