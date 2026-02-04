@@ -100,7 +100,25 @@ def add_res_modal(clicked_date, m_list):
 
     with st.form("res_real_form", clear_on_submit=True):
         res_date = st.date_input("예약 날짜", value=fixed_date)
-        res_time = st.time_input("시간", value=fixed_time) # 클릭한 시간이 자동으로 들어감! ㅋ
+        
+        # --- ⏰ 시간 선택 드롭다운 (10:00 ~ 18:00 제한) ---
+        # 1. 10시부터 18시까지 30분 단위 리스트 생성
+        time_slots = []
+        for hour in range(10, 19): # 10시부터 18시까지
+            time_slots.append(f"{hour:02d}:00")
+            if hour != 18: # 18:30은 제외하고 싶다면 조건 추가
+                time_slots.append(f"{hour:02d}:30")
+        
+        # 2. 현재 클릭한 시간이 리스트에 있으면 해당 시간을 기본값으로, 없으면 10:00으로 설정
+        click_time_str = fixed_time.strftime("%H:%M")
+        if click_time_str not in time_slots:
+            default_index = 0 # 10:00
+        else:
+            default_index = time_slots.index(click_time_str)
+            
+        res_time_str = st.selectbox("시간 선택 (10:00~18:00)", options=time_slots, index=default_index)
+        # ----------------------------------------------
+
         item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
         coun = st.text_input("상담사", value=default_counselor)
         etc = st.text_area("특이사항")
@@ -109,7 +127,8 @@ def add_res_modal(clicked_date, m_list):
             if name == "선택하세요":
                 st.error("회원을 선택해 주세요!")
             else:
-                if manage_gsheet("reservations", [name, res_date.strftime("%Y-%m-%d"), item, coun, f"[{res_time.strftime('%H:%M')}] {etc}"]):
+                # 저장할 때 res_time_str(문자열)을 그대로 사용하면 됩니다.
+                if manage_gsheet("reservations", [name, res_date.strftime("%Y-%m-%d"), item, coun, f"[{res_time_str}] {etc}"]):
                     st.cache_data.clear()
                     st.rerun()
 
