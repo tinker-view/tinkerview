@@ -258,38 +258,45 @@ def show_detail(m_info, h_df):
 
     with t_e:
         with st.form("ef"):
-            st.write("#### ⚙️ 회원 정보 수정")
+            st.write("#### 회원 정보 수정")
             
-            c1, c2, c3 = st.columns([1, 2, 2])
+            # 1. 순번과 성함 (순번은 숫자로 수정 가능하게) ㅋ
+            c1, c2 = st.columns(2)
             e_no = c1.text_input("순번", value=str(m_info['순번']))
             e_n = c2.text_input("성함", value=m_info['성함'])
-            e_v = c3.text_input("최초방문일", value=m_info['최초방문일']) # ✅ 최초방문일 추가!
             
-            c4, c5 = st.columns(2)
-            raw_p = c4.text_input("연락처", value=m_info['연락처'])
+            # 2. 연락처와 생년월일
+            raw_p = st.text_input("연락처", value=m_info['연락처'])
             e_p = re.sub(r'\D', '', raw_p) 
             
-            raw_b = c5.text_input("생년월일", value=m_info['생년월일'])
+            raw_b = st.text_input("생년월일", value=m_info['생년월일'])
             e_b = re.sub(r'\D', '', raw_b) 
             
-            c6, c7 = st.columns([1, 3])
+            # 3. 성별과 주소 (성별 선택 추가!) ㅋ
+            c3, c4 = st.columns([1, 3])
             gender_options = ["남자", "여자"]
-            # 성별 매칭 (남/여 -> 남자/여자)
-            curr_g = "남자" if "남" in m_info['성별'] else "여자"
-            e_g = c6.selectbox("성별", options=gender_options, index=gender_options.index(curr_g))
-            e_a = c7.text_input("주소", value=m_info['주소'])
+            default_g_idx = gender_options.index(m_info['성별']) if m_info['성별'] in gender_options else 0
+            e_g = c3.selectbox("성별", options=gender_options, index=default_g_idx)
+            e_a = c4.text_input("주소", value=m_info['주소'])
             
+            # 4. 상담사 및 기타 정보
             e_c = st.text_input("상담사", value=m_info['상담사'])
             e_m = st.text_area("비고", value=m_info['비고(특이사항)'])
             
             if st.form_submit_button("✅ 정보 수정 완료"):
-                # 최초방문일(e_v)을 포함하여 시트 순서대로 저장!
-                up_row = [e_no.strip(), e_n, e_p, e_b, e_g, e_a, e_v, e_c, e_m]
-                
-                if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
-                    st.success("정보가 완벽하게 수정되었습니다!")
-                    st.cache_data.clear()
-                    st.rerun()
+                try:
+                    # 🧼 숫자 데이터 세탁 (manage_gsheet가 똑똑하게 처리해줄 거임!) ㅋ
+                    clean_no = e_no.strip()
+                    clean_phone = e_p
+                    clean_birth = e_b
+                    
+                    # 시트 순서에 맞춰서 리스트 구성: B(순번), C(성함), D(연락처), E(생년월일), F(성별), G(주소)...
+                    up_row = [clean_no, e_n, clean_phone, clean_birth, e_g, e_a, m_info['최초방문일'], e_c, e_m]
+                    
+                    if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
+                        st.success(f"✅ {e_n} 님 정보(순번/성별 포함)가 완벽하게 수정되었습니다!")
+                        st.cache_data.clear()
+                        st.rerun()
                 except Exception as e:
                     st.error(f"수정 중 오류 발생: {e}")
 
