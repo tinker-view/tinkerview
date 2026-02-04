@@ -191,30 +191,51 @@ def show_detail(m_info, h_df):
     t_v, t_s, t_e = st.tabs(["🔍 상세조회", "💰 매출등록", "✏️ 정보수정"])
     
     with t_v:
-        # 상단 타이틀
+        # 1. 👑 상단 이름 바 (K-View 시그니처 디자인)
         st.markdown(f"""
-            <div style="background-color:#1E90FF; padding:10px; border-radius:8px; margin-bottom:15px; text-align:center;">
-                <h3 style="margin:0; color:white;">👑 {m_info['성함']} <span style="font-size:14px; opacity:0.8;">회원님 정보</span></h3>
+            <div style="background-color:#1E90FF; padding:12px; border-radius:8px; margin-bottom:20px; text-align:center;">
+                <h3 style="margin:0; color:white;">👑 {m_info['성함']} <span style="font-size:14px; opacity:0.8;">회원님 상세 정보</span></h3>
             </div>
         """, unsafe_allow_html=True)
 
-        # 📋 모든 정보를 하나로 묶은 통합 정보 카드 ㅋ
+        # 2. 📋 요청하신 순서대로 정렬된 상세 정보 카드
+        # 배경색을 살짝 넣어서 정보가 눈에 더 잘 들어오게 했습니다 ㅋ
         st.markdown(f"""
-            <div style="background-color:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #dee2e6; line-height:2.2;">
-                <p style="margin:0;"><b>🔢 순번:</b> {m_info['순번']}번</p>
-                <p style="margin:0;"><b>🚻 성별:</b> {m_info['성별']}</p>
-                <p style="margin:0;"><b>🎂 생년:</b> {format_birth(m_info['생년월일'])}</p>
-                <p style="margin:0;"><b>📅 최초방문:</b> {m_info['최초방문일']}</p>
-                <p style="margin:0;"><b>📞 연락처:</b> {format_phone(m_info['연락처'])}</p>
-                <p style="margin:0;"><b>🏠 주소:</b> {m_info['주소'] if m_info['주소'] else '-'}</p>
-                <p style="margin:0;"><b>👨‍🏫 담당상담사:</b> {m_info['상담사']}</p>
-                <p style="margin:0;"><b>🗓️ 최종 등록일:</b> {m_info['최초방문일']}</p>
+            <div style="background-color:#ffffff; padding:20px; border-radius:10px; border:1px solid #e1e4e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">No.</span>
+                    <b style="font-size:18px; color:#333;">{m_info['순번']}번</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">성함</span>
+                    <b style="font-size:18px; color:#333;">{m_info['성함']}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">연락처</span>
+                    <b style="font-size:18px; color:#333;">{format_phone(m_info['연락처'])}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">생년월일</span>
+                    <b style="font-size:18px; color:#333;">{format_birth(m_info['생년월일'])}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">주소</span>
+                    <b style="font-size:16px; color:#333;">{m_info['주소'] if m_info['주소'] else '-'}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">담당 상담사</span>
+                    <b style="font-size:16px; color:#333;">{m_info['상담사']}</b>
+                </div>
+                <div style="margin-bottom:5px;">
+                    <span style="color:#888; font-size:13px; display:block;">최초방문일</span>
+                    <b style="font-size:16px; color:#333;">{m_info['최초방문일']}</b>
+                </div>
             </div>
         """, unsafe_allow_html=True)
         
-        st.write("")
+        st.write("") 
         st.markdown(f"📝 **비고(특이사항)**")
-        st.info(m_info['비고(특이사항)'] if m_info['비고(특이사항)'] else "입력된 특이사항이 없습니다.")
+        st.info(m_info['비고(특이사항)'] if m_info['비고(특이사항)'] else "내용 없음")
         
         st.divider()
         st.write("#### 💰 최근 매출 내역")
@@ -225,7 +246,8 @@ def show_detail(m_info, h_df):
                 if cd.button("삭제", key=f"d_{i}"):
                     if manage_gsheet("schedules", action="delete_sales", key=m_info['성함'], extra={"date": r['날짜'], "item": r['상품명']}):
                         st.cache_data.clear(); st.rerun()
-        else: st.write("내역 없음")
+        else: 
+            st.write("내역 없음")
 
     # --- 2. 매출등록 ---
     with t_s:
