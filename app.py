@@ -216,22 +216,31 @@ with tabs[0]:
                 "borderColor": event_color
             })
 
-        # 3. 달력 옵션 설정 (한글화 버전)
+        # 3. 달력 옵션 설정 (한글화 + 주간 시간표 적용)
         calendar_options = {
             "headerToolbar": {
                 "left": "prev,next today",
                 "center": "title",
-                "right": "dayGridMonth,dayGridWeek"
+                "right": "dayGridMonth,timeGridWeek" # week를 timeGrid로 변경 ㅋ
             },
             "initialView": "dayGridMonth",
             "selectable": True,
-            "locale": "ko",  # 요일 및 월 이름을 한글로!
-            "buttonText": {  # 상단 버튼 영어를 한글로!
+            "locale": "ko",
+            "buttonText": {
                 "today": "오늘",
                 "month": "월간",
                 "week": "주간",
-                "day": "일간"
-            }
+            },
+            # ⏰ 시간 표시 설정 추가
+            "slotMinTime": "09:00:00", # 시작 시간 (오전 9시)
+            "slotMaxTime": "22:00:00", # 종료 시간 (오후 10시)
+            "slotLabelFormat": {
+                "hour": "numeric",
+                "minute": "2-digit",
+                "omitZeroMinute": False,
+                "meridiem": "short" # 오전/오후 표시
+            },
+            "allDaySlot": False, # 상단 '종일' 칸 숨기기 (깔끔하게)
         }
         
         # 4. 달력 위젯 호출
