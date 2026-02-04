@@ -229,7 +229,7 @@ with tabs[0]:
             
             # ✨ 중요: '기타' 열에 저장된 [10:00] 형태의 시간 정보를 추출
             # 주간 시간표(timeGrid)는 시간이 있어야 해당 칸에 표시됩니다. ㅋ
-            res_time = str(r['시간']) if '시간' in r else "10:00" # 기본값
+            res_time = "10:00" # 기본값
             time_match = re.search(r'\[(\d{2}:\d{2})\]', str(r['기타']))
             if time_match:
                 res_time = time_match.group(1)
