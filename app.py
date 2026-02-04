@@ -94,49 +94,61 @@ def add_member_modal():
 # 📅 예약 등록 팝업
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
-    # ... (날짜/시간 추출 로직은 동일) ...
+    # 1. 시간 추출 및 시차 보정 (기존 로직 유지) ㅋ
+    try:
+        dt_parts = clicked_date.replace("Z", "").split("T")
+        date_str = dt_parts[0]
+        time_str = dt_parts[1][:5]
+        base_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+        kor_dt = base_dt + timedelta(hours=9)
+        fixed_date, fixed_time = kor_dt.date(), kor_dt.time()
+    except:
+        fixed_date, fixed_time = datetime.now().date(), datetime.now().time()
 
-    # --- ✍️ 회원 선택 또는 직접 입력 로직 ---
-    st.write("👤 **예약자 정보 입력**")
+    st.write(f"📅 선택된 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
+
+    # --- ✍️ [핵심 변경] 회원 선택 대신 직접 입력 방식으로 전환 ㅋ ---
+    st.divider()
     
-    # 1. 텍스트 입력창으로 변경 (직접 입력 가능!)
-    name = st.text_input("성함", placeholder="직접 입력하거나 아래에서 선택", key="res_name_input")
+    # 성함 직접 입력창 (회원이 아니어도 아무거나 입력 가능!)
+    res_name = st.text_input("👤 예약자 성함 (직접 입력)", placeholder="손님1, 외부미팅 등 자유롭게 입력", key="res_name_input")
     
-    # 2. 검색 추천 목록 (선택 시 입력창에 도움을 줌)
-    name_q = st.text_input("🔍 회원 검색 (필요 시)", placeholder="성함으로 검색...", key="res_search_q")
-    if name_q:
-        filtered = m_list[m_list['성함'].str.contains(name_q, na=False)]['성함'].tolist()
-        if filtered:
-            selected_hint = st.selectbox("검색 결과 (클릭하여 이름 복사)", ["선택하세요"] + filtered)
-            if selected_hint != "선택하세요":
-                st.info(f"💡 위 성함 칸에 **'{selected_hint}'**를 입력해 주세요.")
+    # 기존 회원 검색 및 추천 (필요할 때만 사용)
+    with st.expander("🔍 기존 회원 검색하기"):
+        search_q = st.text_input("회원 이름 검색", placeholder="성함 입력 시 아래 목록에 나타납니다.")
+        if search_q:
+            filtered = m_list[m_list['성함'].str.contains(search_q, na=False)]['성함'].tolist()
+            if filtered:
+                selected_hint = st.selectbox("검색 결과 (선택 시 위 성함 칸에 수동 입력해 주세요)", ["선택하세요"] + filtered)
+                if selected_hint != "선택하세요":
+                    st.info(f"💡 성함 칸에 **'{selected_hint}'**라고 입력하시면 회원 정보가 연동됩니다.")
     
-    # 상담사 자동 매칭 (회원 명단에 있을 경우만)
+    # 상담사 자동 매칭 (명단에 있는 이름일 때만 작동) ㅋ
     default_counselor = ""
-    if name:
-        matched = m_list[m_list['성함'] == name]
+    if res_name:
+        matched = m_list[m_list['성함'] == res_name]
         if not matched.empty:
             default_counselor = matched.iloc[0]['상담사']
 
     with st.form("res_real_form", clear_on_submit=True):
         res_date = st.date_input("예약 날짜", value=fixed_date)
         
-        # 시간 선택 (기존 유지)
+        # 시간 선택 드롭다운 (10:00~18:00)
         time_slots = [f"{h:02d}:{m:02d}" for h in range(10, 19) for m in (0, 30)][:-1]
         click_time_str = fixed_time.strftime("%H:%M")
-        default_index = time_slots.index(click_time_str) if click_time_str in time_slots else 0
-        res_time_str = st.selectbox("시간 선택", options=time_slots, index=default_index)
+        default_idx = time_slots.index(click_time_str) if click_time_str in time_slots else 0
+        res_time_str = st.selectbox("시간 선택", options=time_slots, index=default_idx)
 
         item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
         coun = st.text_input("상담사", value=default_counselor)
         etc = st.text_area("특이사항")
         
         if st.form_submit_button("✅ 예약 저장"):
-            if not name:
-                st.error("성함(또는 예약명)을 입력해 주세요!")
+            if not res_name:
+                st.error("성함(또는 예약 명칭)을 입력해 주세요!")
             else:
-                # 이제 이름이 명단에 없어도 '손님1'처럼 저장됩니다! ㅋ
-                if manage_gsheet("reservations", [name, res_date.strftime("%Y-%m-%d"), item, coun, res_time_str, etc]):
+                # 구글 시트에 바로 저장! (회원 명단에 없어도 무관함) ㅋ
+                if manage_gsheet("reservations", [res_name, res_date.strftime("%Y-%m-%d"), item, coun, res_time_str, etc]):
                     st.cache_data.clear()
                     st.rerun()
 
