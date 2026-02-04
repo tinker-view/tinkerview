@@ -191,12 +191,34 @@ def show_detail(m_info, h_df):
     t_v, t_s, t_e = st.tabs(["🔍 상세조회", "💰 매출등록", "✏️ 정보수정"])
     
     with t_v:
-        st.write(f"### {m_info['성함']} 님 프로필")
-        c1, c2 = st.columns(2)
-        c1.write(f"**📞 연락처:** {format_phone(m_info['연락처'])}\n\n**🎂 생년:** {format_birth(m_info['생년월일'])}")
-        c2.write(f"**🏠 주소:** {m_info['주소']}\n\n**👨‍🏫 담당:** {m_info['상담사']}")
-        st.info(f"**📝 비고:** {m_info['비고(특이사항)']}")
+        # 1. 👑 이름 강조 타이틀 (파란색으로 큼직하게!) ㅋ
+        st.markdown(f"""
+            <div style="background-color:#f0f2f6; padding:15px; border-radius:10px; margin-bottom:20px;">
+                <h2 style="margin:0; color:#1E90FF;">👑 {m_info['성함']} <span style="font-size:18px; color:#666;">회원님 프로필</span></h2>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # 2. 🔢 핵심 정보 메트릭 (순번, 성별, 생년월일 한눈에!) ㅋ
+        m_c1, m_c2, m_c3 = st.columns(3)
+        m_c1.metric("🔢 순번", f"{m_info['순번']}번")
+        m_c2.metric("🚻 성별", m_info['성별'])
+        m_c3.metric("🎂 생년", format_birth(m_info['생년월일']))
+        
         st.divider()
+
+        # 3. 상세 인포메이션
+        col_l, col_r = st.columns(2)
+        with col_l:
+            st.write(f"**📞 연락처:** {format_phone(m_info['연락처'])}")
+            st.write(f"**🏠 주소:** {m_info['주소']}")
+        with col_r:
+            st.write(f"**📅 최초방문:** {m_info['최초방문일']}")
+            st.write(f"**👨‍🏫 담당:** {m_info['상담사']}")
+            
+        st.info(f"**📝 비고(특이사항):**\n\n{m_info['비고(특이사항)']}")
+        
+        st.divider()
+        st.write("#### 💰 최근 매출 내역")
         if not h_df.empty:
             for i, r in h_df.iterrows():
                 ci, cd = st.columns([8, 2])
@@ -204,7 +226,8 @@ def show_detail(m_info, h_df):
                 if cd.button("삭제", key=f"d_{i}"):
                     if manage_gsheet("schedules", action="delete_sales", key=m_info['성함'], extra={"date": r['날짜'], "item": r['상품명']}):
                         st.cache_data.clear(); st.rerun()
-        else: st.write("내역 없음")
+        else: 
+            st.write("내역 없음")
 
     with t_s:
         s_date = st.date_input("결제 날짜", datetime.now())
@@ -250,7 +273,7 @@ def show_detail(m_info, h_df):
             
             # 3. 성별과 주소 (성별 선택 추가!) ㅋ
             c3, c4 = st.columns([1, 3])
-            gender_options = ["남", "여"]
+            gender_options = ["남자", "여자"]
             default_g_idx = gender_options.index(m_info['성별']) if m_info['성별'] in gender_options else 0
             e_g = c3.selectbox("성별", options=gender_options, index=default_g_idx)
             e_a = c4.text_input("주소", value=m_info['주소'])
