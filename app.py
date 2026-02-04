@@ -226,37 +226,37 @@ with tabs[0]:
     st.subheader("📅 스케줄 달력")
     
     events = []
-    # 1. 예약 데이터가 있을 때 이벤트 리스트 생성
     if not df_r.empty:
         for _, r in df_r.iterrows():
-            # 색상 지정 로직
-            event_color = "#3D5AFE" # 기본 (파랑)
+            # 1. 색상 로직
+            event_color = "#3D5AFE"
             p_name = str(r.get('상품명', ''))
             if "상담" in p_name: event_color = "#FF9100"
             elif "HP" in p_name: event_color = "#00C853"
             elif "S" in p_name: event_color = "#D500F9"
             
-            # ⏰ 시간 및 날짜 데이터 정제 (중요!)
-            res_date = str(r.get('날짜', '')).strip()
-            res_time = str(r.get('시간', '')).strip() if pd.notna(r.get('시간')) else "10:00"
+            # 2. 🧼 데이터 청소 (가장 중요!)
+            # 구글 시트에서 올 때 '2026-02-04 처럼 앞에 따옴표가 붙는 경우가 많아요 ㅋ
+            res_date = str(r.get('날짜', '')).replace("'", "").strip()
+            res_time = str(r.get('시간', '')).replace("'", "").strip()
             
-            # 시간 형식이 "10:00"인지 확인 (오류 방지)
-            if ":" not in res_time or len(res_time) < 5:
+            # 3. 시간 형식 보정 (10:00 형태로 강제 고정)
+            if not res_time or ":" not in res_time:
                 res_time = "10:00"
             
-            # 달력이 인식하는 형식: "YYYY-MM-DDTHH:mm:00" ㅋ
-            start_iso = f"{res_date}T{res_time}:00"
+            # 4. ISO 규격 완성: YYYY-MM-DDTHH:mm:00
+            # 만약 날짜 형식이 2026.02.04 라면 - 로 바꿔주는 센스! ㅋ
+            res_date = res_date.replace(".", "-")
             
             events.append({
-                "title": f"{r['성함']} ({p_name})",
-                "start": start_iso,
+                "title": f"{r.get('성함', '무명')} ({p_name})",
+                "start": f"{res_date}T{res_time}:00",
                 "allDay": False,
                 "backgroundColor": event_color,
                 "borderColor": event_color,
-                "extendedProps": {"memo": r.get('특이사항', '')}
             })
 
-    # 2. 달력 옵션 설정
+    # 달력 옵션 및 위젯 호출 (이하 동일)
     calendar_options = {
         "headerToolbar": {
             "left": "prev,next today",
@@ -270,22 +270,14 @@ with tabs[0]:
         "slotMinTime": "10:00:00",
         "slotMaxTime": "18:00:00",
         "slotLabelFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
-        "eventTimeFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
         "allDaySlot": False,
     }
     
-    # 3. 달력 위젯 호출 (무조건 실행해서 state 정의)
-    state = calendar(
-        events=events,
-        options=calendar_options,
-        key="calendar_final_fixed_v7" # 키를 바꿔서 새로고침 강제 유도 ㅋ
-    )
+    state = calendar(events=events, options=calendar_options, key="calendar_v8_clean")
 
-    # 4. 날짜 클릭 처리
     if state.get("dateClick"):
         raw_date = str(state["dateClick"]["date"])
         clicked_time = raw_date.split("T")[1][:8] if "T" in raw_date else "00:00:00"
-        
         if clicked_time == "00:00:00" or not "T" in raw_date:
             st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
         else:
