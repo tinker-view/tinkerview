@@ -82,7 +82,12 @@ def format_phone(p):
     c = re.sub(r'\D', '', str(p)); return f"{c[:3]}-{c[3:7]}-{c[7:]}" if len(c) == 11 else c
 
 def format_birth(b):
-    c = re.sub(r'\D', '', str(b).split('.')[0]); return f"{c[:4]}.{c[4:6]}.{c[6:]}" if len(c) == 8 else c
+    # 숫자만 남기기
+    c = re.sub(r'\D', '', str(b))
+    # 8자리(19900101)라면 1990.01.01 형식으로, 아니면 그대로 반환 ㅋ
+    if len(c) == 8:
+        return f"{c[:4]}.{c[4:6]}.{c[6:]}"
+    return c
 
 # 👤 새 회원 등록 팝업
 @st.dialog("👤 새 회원 등록")
