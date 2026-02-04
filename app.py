@@ -65,27 +65,15 @@ def format_birth(b):
 # 📅 예약 등록 팝업 (회원 검색 및 날짜 보정 완료)
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
-    # 💡 어떤 형식이 와도 안전하게 날짜/시간 추출
-    try:
-        # T를 기준으로 날짜와 시간 분리
-        dt_parts = clicked_date.replace("Z", "").split("T")
-        date_str = dt_parts[0]
-        time_str = dt_parts[1][:5] # "10:00:00"이든 "10:00"이든 앞에서 5글자만!
-        
-        # 일단 기준 시간을 만들고
-        base_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-        
-        # 🌏 시차 보정: 주간 클릭 시 9시간 밀리는 현상 해결 (+9시간)
-        kor_dt = base_dt + timedelta(hours=9)
-        
-        fixed_date = kor_dt.date()
-        fixed_time = kor_dt.time()
-    except Exception as e:
-        # 혹시라도 에러 나면 오늘 날짜/시간으로 비상 대피 ㅋ
-        fixed_date = datetime.now().date()
-        fixed_time = datetime.now().time()
+    # 주간 달력에서 넘어온 '2026-02-06T10:00:00' 형태에서 날짜와 시간 추출 ㅋ
+    dt_part = clicked_date.split("T")
+    pure_date = dt_part[0] # "2026-02-06"
+    pure_time = dt_part[1][:5] # "10:00"
 
-    st.write(f"📅 선택된 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
+    fixed_date = datetime.strptime(pure_date, "%Y-%m-%d").date()
+    fixed_time = datetime.strptime(pure_time, "%H:%M").time()
+
+    st.write(f"📅 선택된 시간: **{pure_date} {pure_time}**")
 
     # --- 회원 검색 로직 ---
     search_q = st.text_input("👤 회원 검색", placeholder="성함 입력")
@@ -101,7 +89,6 @@ def add_res_modal(clicked_date, m_list):
     with st.form("res_real_form", clear_on_submit=True):
         res_date = st.date_input("예약 날짜", value=fixed_date)
         res_time = st.time_input("시간", value=fixed_time) # 클릭한 시간이 자동으로 들어감! ㅋ
-        
         item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
         coun = st.text_input("상담사", value=default_counselor)
         etc = st.text_area("특이사항")
