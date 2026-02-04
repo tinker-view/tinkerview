@@ -224,35 +224,54 @@ with tabs[0]:
     
     events = []
     if not df_r.empty:
-        for _, r in df_r.iterrows():
-            # 1. 색상 로직
-            event_color = "#3D5AFE"
-            p_name = str(r.get('상품명', ''))
-            if "상담" in p_name: event_color = "#FF9100"
-            elif "HP" in p_name: event_color = "#00C853"
-            elif "S" in p_name: event_color = "#D500F9"
-            
-            # 2. 데이터 청소 및 '시간' 컬럼 호출 ㅋ
-            res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
-            res_time = str(r.get('시간', '')).replace("'", "").strip()
-            
-            # 3. 시간 형식 보정
-            if not res_time or ":" not in res_time:
-                res_time = "10:00"
-            elif len(res_time) == 4: # 9:00 -> 09:00 보정
-                res_time = "0" + res_time
-            
-            # 4. 이벤트 추가
-            events.append({
-                "title": f"{r.get('성함', '무명')} ({p_name})",
-                "start": f"{res_date}T{res_time}:00",
-                "allDay": False,
-                "backgroundColor": event_color,
-                "borderColor": event_color,
-                "extendedProps": {"memo": r.get('특이사항', '')} # 특이사항 데이터 저장 ㅋ
-            })
+        # 🧪 [디버깅] 데이터가 몇 건 있는지 확인용 (잘 나오면 나중에 지우세요 ㅋ)
+        # st.caption(f"시스템이 읽어온 예약 수: {len(df_r)}건") 
 
-    # 달력 옵션 설정
+        for _, r in df_r.iterrows():
+            try:
+                # 1. 색상 로직
+                event_color = "#3D5AFE"
+                p_name = str(r.get('상품명', ''))
+                if "상담" in p_name: event_color = "#FF9100"
+                elif "HP" in p_name: event_color = "#00C853"
+                elif "S" in p_name: event_color = "#D500F9"
+                
+                # 2. 날짜 정제 (가장 까다로운 부분 ㅋ)
+                # '2026-02-04' 형태인지 확인하고 점(.)이나 공백 제거
+                res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
+                
+                # 3. 시간 정제
+                # 구글 시트에서 '10:00'이 '10:00:00'으로 올 수도 있고 '[10:00]'일 수도 있음 ㅋ
+                res_time_raw = str(r.get('시간', '')).replace("'", "").strip()
+                # 숫자와 콜론(:)만 남기기
+                res_time = re.sub(r'[^0-9:]', '', res_time_raw)
+                
+                if ":" not in res_time:
+                    res_time = "10:00"
+                
+                # HH:MM 형식 맞추기 (예: 9:00 -> 09:00)
+                time_parts = res_time.split(":")
+                hh = time_parts[0].zfill(2)
+                mm = time_parts[1].zfill(2) if len(time_parts) > 1 else "00"
+                res_time_final = f"{hh}:{mm}"
+
+                # 4. 달력이 좋아하는 ISO 형식 완성 ("2026-02-04T10:00:00")
+                start_iso = f"{res_date}T{res_time_final}:00"
+                
+                events.append({
+                    "title": f"{r.get('성함', '무명')} ({p_name})",
+                    "start": start_iso,
+                    "allDay": False,
+                    "backgroundColor": event_color,
+                    "borderColor": event_color,
+                    # 특이사항도 달력 이벤트 데이터에 슬쩍 넣어두기 ㅋ
+                    "extendedProps": {"memo": r.get('특이사항', '')}
+                })
+            except Exception as e:
+                # 특정 행에서 에러나면 무시하고 다음 행으로! ㅋ
+                continue
+
+    # 5. 달력 옵션 (변화 없음)
     calendar_options = {
         "headerToolbar": {
             "left": "prev,next today",
@@ -270,10 +289,14 @@ with tabs[0]:
         "allDaySlot": False,
     }
     
-    # 달력 호출 (캐시 충돌 방지를 위해 v11로 키 변경 ㅋ)
-    state = calendar(events=events, options=calendar_options, key="calendar_v11_final")
+    # 6. 달력 위젯 호출 (key를 바꿔서 완전히 새로 그리게 함 ㅋ)
+    state = calendar(
+        events=events, 
+        options=calendar_options, 
+        key="calendar_v12_final_fix"
+    )
 
-    # 5. 클릭 시 예약 팝업 (주간 탭 전용)
+    # 7. 날짜 클릭 처리
     if state.get("dateClick"):
         raw_date = str(state["dateClick"]["date"])
         clicked_time = raw_date.split("T")[1][:8] if "T" in raw_date else "00:00:00"
