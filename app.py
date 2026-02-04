@@ -65,55 +65,35 @@ def format_birth(b):
 # 📅 예약 등록 팝업 (회원 검색 및 날짜 보정 완료)
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
-    # 💡 깃헙/서버 시차 문제 해결 로직
-    # 클릭된 데이터에 'T'가 포함되어 있으면 주간(시간축) 클릭임 -> 날짜가 정확함
-    # 'T'가 없으면 월간 클릭임 -> 하루가 밀려오므로 +1 해줌
-    
-    if "T" in clicked_date:
-        # 주간 클릭 (예: 2026-02-06T10:00:00)
-        pure_date = clicked_date.split("T")[0]
-        fixed_date = datetime.strptime(pure_date, "%Y-%m-%d").date()
-    else:
-        # 월간 클릭 (예: 2026-02-06) -> 끈질긴 시차 때문에 +1일 강제 보정
-        try:
-            base_date = datetime.strptime(clicked_date, "%Y-%m-%d")
-            fixed_date = (base_date + timedelta(days=1)).date()
-        except:
-            fixed_date = datetime.now().date()
+    # 주간 달력에서 넘어온 '2026-02-06T10:00:00' 형태에서 날짜와 시간 추출 ㅋ
+    dt_part = clicked_date.split("T")
+    pure_date = dt_part[0] # "2026-02-06"
+    pure_time = dt_part[1][:5] # "10:00"
 
-    st.write(f"📅 선택된 날짜: **{fixed_date}**")
+    fixed_date = datetime.strptime(pure_date, "%Y-%m-%d").date()
+    fixed_time = datetime.strptime(pure_time, "%H:%M").time()
 
-    # 🔍 회원 검색 기능 추가
-    search_q = st.text_input("👤 회원 검색 (성함 입력)", placeholder="예: 이")
-    
-    # 입력된 검색어가 포함된 회원만 필터링
-    if search_q:
-        filtered_members = m_list[m_list['성함'].str.contains(search_q, na=False)]
-    else:
-        filtered_members = m_list
+    st.write(f"📅 선택된 시간: **{pure_date} {pure_time}**")
 
-    # 필터링된 명단으로 선택박스 구성
+    # --- 회원 검색 로직 ---
+    search_q = st.text_input("👤 회원 검색", placeholder="성함 입력")
+    filtered_members = m_list[m_list['성함'].str.contains(search_q, na=False)] if search_q else m_list
     name_options = ["선택하세요"] + filtered_members['성함'].tolist()
-    name = st.selectbox(f"회원 선택 (검색 결과: {len(filtered_members)}명)", options=name_options, key="res_name_select")
+    name = st.selectbox(f"회원 선택", options=name_options, key="res_name_select")
     
-    # 상담사 자동 매칭
     default_counselor = ""
     if name != "선택하세요":
         matched = m_list[m_list['성함'] == name]
-        if not matched.empty:
-            default_counselor = matched.iloc[0]['상담사']
+        if not matched.empty: default_counselor = matched.iloc[0]['상담사']
 
-    # 실제 데이터 입력 폼
     with st.form("res_real_form", clear_on_submit=True):
         res_date = st.date_input("예약 날짜", value=fixed_date)
-        res_time = st.time_input("시간", datetime.strptime("10:00", "%H:%M"))
+        res_time = st.time_input("시간", value=fixed_time) # 클릭한 시간이 자동으로 들어감! ㅋ
         item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
-        
         coun = st.text_input("상담사", value=default_counselor)
         etc = st.text_area("특이사항")
         
-        submit = st.form_submit_button("✅ 예약 저장")
-        if submit:
+        if st.form_submit_button("✅ 예약 저장"):
             if name == "선택하세요":
                 st.error("회원을 선택해 주세요!")
             else:
