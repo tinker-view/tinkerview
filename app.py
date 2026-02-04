@@ -235,29 +235,42 @@ def show_detail(m_info, h_df):
     with t_e:
         with st.form("ef"):
             st.write("#### 회원 정보 수정")
-            e_n = st.text_input("성함", value=m_info['성함'])
-            e_p = st.text_input("연락처", value=m_info['연락처'])
-            e_b = st.text_input("생년월일", value=m_info['생년월일'])
-            e_a = st.text_input("주소", value=m_info['주소'])
+            
+            # 1. 순번과 성함 (순번은 숫자로 수정 가능하게) ㅋ
+            c1, c2 = st.columns(2)
+            e_no = c1.text_input("순번", value=str(m_info['순번']))
+            e_n = c2.text_input("성함", value=m_info['성함'])
+            
+            # 2. 연락처와 생년월일
+            raw_p = st.text_input("연락처", value=m_info['연락처'])
+            e_p = re.sub(r'\D', '', raw_p) 
+            
+            raw_b = st.text_input("생년월일", value=m_info['생년월일'])
+            e_b = re.sub(r'\D', '', raw_b) 
+            
+            # 3. 성별과 주소 (성별 선택 추가!) ㅋ
+            c3, c4 = st.columns([1, 3])
+            gender_options = ["남", "여"]
+            default_g_idx = gender_options.index(m_info['성별']) if m_info['성별'] in gender_options else 0
+            e_g = c3.selectbox("성별", options=gender_options, index=default_g_idx)
+            e_a = c4.text_input("주소", value=m_info['주소'])
+            
+            # 4. 상담사 및 기타 정보
             e_c = st.text_input("상담사", value=m_info['상담사'])
             e_m = st.text_area("비고", value=m_info['비고(특이사항)'])
+            
             if st.form_submit_button("✅ 정보 수정 완료"):
-                # 🧼 모든 숫자형 데이터를 깨끗하게 세탁 ㅋ
                 try:
-                    # 순번에서 따옴표(') 제거하고 순수 숫자로 변환
-                    raw_no = str(m_info['순번']).replace("'", "").strip()
-                    clean_no = int(raw_no) if raw_no.isdigit() else raw_no
+                    # 🧼 숫자 데이터 세탁 (manage_gsheet가 똑똑하게 처리해줄 거임!) ㅋ
+                    clean_no = e_no.strip()
+                    clean_phone = e_p
+                    clean_birth = e_b
                     
-                    # 연락처와 생년월일도 숫자만 남기기
-                    clean_phone = re.sub(r'\D', '', e_p)
-                    clean_birth = re.sub(r'\D', '', e_b)
+                    # 시트 순서에 맞춰서 리스트 구성: B(순번), C(성함), D(연락처), E(생년월일), F(성별), G(주소)...
+                    up_row = [clean_no, e_n, clean_phone, clean_birth, e_g, e_a, m_info['최초방문일'], e_c, e_m]
                     
-                    # ✨ up_row 구성 (순번을 따옴표 없이 전달)
-                    up_row = [clean_no, e_n, clean_phone, clean_birth, m_info['성별'], e_a, m_info['최초방문일'], e_c, e_m]
-                    
-                    # manage_gsheet 호출 (여기서 f"'{str(v)}" 로직이 있다면 숫자일 땐 따옴표 안 붙게 체크 필요) ㅋ
                     if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
-                        st.success(f"✅ {e_n} 님 정보가 숫자로 깔끔하게 저장되었습니다!")
+                        st.success(f"✅ {e_n} 님 정보(순번/성별 포함)가 완벽하게 수정되었습니다!")
                         st.cache_data.clear()
                         st.rerun()
                 except Exception as e:
