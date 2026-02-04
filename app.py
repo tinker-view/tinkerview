@@ -225,24 +225,35 @@ tabs = st.tabs(["📅 스케줄 달력", "📋 예약 관리", "👥 회원 관�
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
     
-    # 1. 이벤트 데이터 생성 (새 시트 구조 반영)
     events = []
+    # 1. 예약 데이터가 있을 때 이벤트 리스트 생성
     if not df_r.empty:
         for _, r in df_r.iterrows():
-            event_color = "#3D5AFE"
-            if "상담" in str(r['상품명']): event_color = "#FF9100"
-            elif "HP" in str(r['상품명']): event_color = "#00C853"
-            elif "S" in str(r['상품명']): event_color = "#D500F9"
+            # 색상 지정 로직
+            event_color = "#3D5AFE" # 기본 (파랑)
+            p_name = str(r.get('상품명', ''))
+            if "상담" in p_name: event_color = "#FF9100"
+            elif "HP" in p_name: event_color = "#00C853"
+            elif "S" in p_name: event_color = "#D500F9"
             
-            # ✨ 변경된 점: '기타'에서 정규표현식으로 찾지 않고, '시간' 컬럼을 바로 씁니다! ㅋ
-            res_time = str(r['시간']) if '시간' in r and pd.notna(r['시간']) else "10:00"
+            # ⏰ 시간 및 날짜 데이터 정제 (중요!)
+            res_date = str(r.get('날짜', '')).strip()
+            res_time = str(r.get('시간', '')).strip() if pd.notna(r.get('시간')) else "10:00"
+            
+            # 시간 형식이 "10:00"인지 확인 (오류 방지)
+            if ":" not in res_time or len(res_time) < 5:
+                res_time = "10:00"
+            
+            # 달력이 인식하는 형식: "YYYY-MM-DDTHH:mm:00" ㅋ
+            start_iso = f"{res_date}T{res_time}:00"
             
             events.append({
-                "title": f"{r['성함']} ({r['상품명']})",
-                "start": f"{r['날짜']}T{res_time}:00",
+                "title": f"{r['성함']} ({p_name})",
+                "start": start_iso,
                 "allDay": False,
                 "backgroundColor": event_color,
                 "borderColor": event_color,
+                "extendedProps": {"memo": r.get('특이사항', '')}
             })
 
     # 2. 달력 옵션 설정
@@ -263,21 +274,18 @@ with tabs[0]:
         "allDaySlot": False,
     }
     
-    # 3. 달력 위젯 호출 (데이터 유무와 상관없이 항상 실행하여 state 정의!)
+    # 3. 달력 위젯 호출 (무조건 실행해서 state 정의)
     state = calendar(
         events=events,
         options=calendar_options,
-        key="calendar_final_v6"
+        key="calendar_final_fixed_v7" # 키를 바꿔서 새로고침 강제 유도 ㅋ
     )
 
-    # 4. 날짜 클릭 처리 (정확한 시차 보정 로직 포함)
+    # 4. 날짜 클릭 처리
     if state.get("dateClick"):
         raw_date = str(state["dateClick"]["date"])
-        
-        # 시간 부분만 추출 (T 뒤의 8글자)
         clicked_time = raw_date.split("T")[1][:8] if "T" in raw_date else "00:00:00"
         
-        # 월간/주간 판별 및 팝업 실행
         if clicked_time == "00:00:00" or not "T" in raw_date:
             st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
         else:
