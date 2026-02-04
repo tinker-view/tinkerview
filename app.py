@@ -232,28 +232,27 @@ with tabs[0]:
             elif "HP" in p_name: event_color = "#00C853"
             elif "S" in p_name: event_color = "#D500F9"
             
-            # 2. 🧼 데이터 청소 (가장 중요!)
-            # 구글 시트에서 올 때 '2026-02-04 처럼 앞에 따옴표가 붙는 경우가 많아요 ㅋ
-            res_date = str(r.get('날짜', '')).replace("'", "").strip()
+            # 2. 데이터 청소 및 '시간' 컬럼 호출 ㅋ
+            res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
             res_time = str(r.get('시간', '')).replace("'", "").strip()
             
-            # 3. 시간 형식 보정 (10:00 형태로 강제 고정)
+            # 3. 시간 형식 보정
             if not res_time or ":" not in res_time:
                 res_time = "10:00"
+            elif len(res_time) == 4: # 9:00 -> 09:00 보정
+                res_time = "0" + res_time
             
-            # 4. ISO 규격 완성: YYYY-MM-DDTHH:mm:00
-            # 만약 날짜 형식이 2026.02.04 라면 - 로 바꿔주는 센스! ㅋ
-            res_date = res_date.replace(".", "-")
-            
+            # 4. 이벤트 추가
             events.append({
                 "title": f"{r.get('성함', '무명')} ({p_name})",
                 "start": f"{res_date}T{res_time}:00",
                 "allDay": False,
                 "backgroundColor": event_color,
                 "borderColor": event_color,
+                "extendedProps": {"memo": r.get('특이사항', '')} # 특이사항 데이터 저장 ㅋ
             })
 
-    # 달력 옵션 및 위젯 호출 (이하 동일)
+    # 달력 옵션 설정
     calendar_options = {
         "headerToolbar": {
             "left": "prev,next today",
@@ -267,14 +266,18 @@ with tabs[0]:
         "slotMinTime": "10:00:00",
         "slotMaxTime": "18:00:00",
         "slotLabelFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
+        "eventTimeFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
         "allDaySlot": False,
     }
     
-    state = calendar(events=events, options=calendar_options, key="calendar_v8_clean")
+    # 달력 호출 (캐시 충돌 방지를 위해 v11로 키 변경 ㅋ)
+    state = calendar(events=events, options=calendar_options, key="calendar_v11_final")
 
+    # 5. 클릭 시 예약 팝업 (주간 탭 전용)
     if state.get("dateClick"):
         raw_date = str(state["dateClick"]["date"])
         clicked_time = raw_date.split("T")[1][:8] if "T" in raw_date else "00:00:00"
+        
         if clicked_time == "00:00:00" or not "T" in raw_date:
             st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
         else:
