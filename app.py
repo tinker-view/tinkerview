@@ -215,9 +215,27 @@ def show_detail(m_info, h_df):
 
 # 4. 메인 UI
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
-st.title("🛠️ Tinker-View Pro")
 
-tabs = st.tabs(["📅 스케줄 달력", "📋 예약 관리", "👥 회원 관리", "📊 매출 현황"])
+# ✨ 상단 타이틀 모바일 최적화 버전 ㅋ
+st.markdown("""
+    <style>
+        .main-title {
+            font-size: 26px !important;
+            font-weight: 800 !important;
+            color: #1E3A8A;
+            margin-top: -20px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+    </style>
+    <div class="main-title">
+        ✨ Tinker-View
+    </div>
+""", unsafe_allow_html=True)
+
+# 탭 이름에서도 Pro 느낌을 빼고 더 심플하게 갈 수도 있어요 ㅋ
+tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
