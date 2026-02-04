@@ -270,10 +270,6 @@ with tabs[0]:
             # 주간 뷰에서는 클릭한 칸의 '정확한 시간'이 데이터에 포함되어 있습니다.
             # 이 데이터를 add_res_modal에 그대로 넘겨서 처리합니다.
             add_res_modal(raw_date, df_m)
-        else:
-            # 'T'가 없는 '월간' 클릭일 때만 안내 문구를 띄웁니다. ㅋ
-            # 아까 에러 났던 부분이니 아주 깔끔하게 한 줄로 작성했습니다!
-            st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
             
 with tabs[1]:
     st.dataframe(df_r, use_container_width=True, hide_index=True)
