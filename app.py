@@ -65,15 +65,16 @@ def format_birth(b):
 # 📅 예약 등록 팝업 (회원 검색 및 날짜 보정 완료)
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
-    # 주간 달력에서 넘어온 '2026-02-06T10:00:00' 형태에서 날짜와 시간 추출 ㅋ
-    dt_part = clicked_date.split("T")
-    pure_date = dt_part[0] # "2026-02-06"
-    pure_time = dt_part[1][:5] # "10:00"
+    # 클릭된 원본: "2026-02-04T02:00:00Z" (실제 클릭은 11:00)
+    # 하지만 우리 눈엔 11:00로 보였으니, 시차(+9시간)를 강제로 더해서 복구합니다! ㅋ
+    
+    raw_dt = datetime.strptime(clicked_date.replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
+    kor_dt = raw_dt + timedelta(hours=9) # 9시간 더하기 ㅋ
+    
+    fixed_date = kor_dt.date()
+    fixed_time = kor_dt.time()
 
-    fixed_date = datetime.strptime(pure_date, "%Y-%m-%d").date()
-    fixed_time = datetime.strptime(pure_time, "%H:%M").time()
-
-    st.write(f"📅 선택된 시간: **{pure_date} {pure_time}**")
+    st.write(f"📅 선택된 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
 
     # --- 회원 검색 로직 ---
     search_q = st.text_input("👤 회원 검색", placeholder="성함 입력")
