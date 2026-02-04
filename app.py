@@ -249,13 +249,27 @@ with tabs[0]:
             key="calendar_main_v4" # 캐시 꼬임 방지를 위해 키 변경 ㅋ
         )
 
-        # 4. 날짜 클릭 시 처리 (주간 달력에서만 팝업 오픈)
+        # 4. 날짜 클릭 시 처리 (시차 보정 버전)
     if state.get("dateClick"):
-        raw_clicked_date = str(state["dateClick"]["date"])
+        raw_date = str(state["dateClick"]["date"]) # 예: "2026-02-04T11:00:00Z"
         
-        # 'T'가 포함되어 있으면 시간 정보가 있는 '주간' 클릭입니다. ㅋ
-        if "T" in raw_clicked_date:
-            add_res_modal(raw_clicked_date, df_m)
+        # 💡 T 뒤에 오는 시간을 확인 (시차 때문에 꼬인 시간 그대로 가져옴)
+        # 보통 월간은 "T00:00:00" 혹은 시차 보정된 "T09:00:00", "T13:00:00" 등으로 옴
+        # 주간은 클릭한 시간 그대로 옴
+        
+        # 시간 부분만 추출 (T 뒤의 8글자)
+        clicked_time = raw_date.split("T")[1][:8] if "T" in raw_date else "00:00:00"
+        
+        # 1. 월간 클릭 차단: 시간이 정각(00시)이거나 특정 기본값이면 월간으로 간주
+        if clicked_time == "00:00:00" or not "T" in raw_date:
+            st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
+        else:
+            # 2. 주간 클릭: 시차 계산하지 말고 '보이는 글자 그대로' 전달!
+            # 11:00 클릭 -> 서버에 02:00로 전달됨 -> 이걸 다시 11:00로 복원하는 마법 ㅋ
+            
+            # 주간 뷰에서는 클릭한 칸의 '정확한 시간'이 데이터에 포함되어 있습니다.
+            # 이 데이터를 add_res_modal에 그대로 넘겨서 처리합니다.
+            add_res_modal(raw_date, df_m)
         else:
             # 'T'가 없는 '월간' 클릭일 때만 안내 문구를 띄웁니다. ㅋ
             # 아까 에러 났던 부분이니 아주 깔끔하게 한 줄로 작성했습니다!
