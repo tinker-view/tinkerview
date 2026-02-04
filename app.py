@@ -259,8 +259,8 @@ with tabs[0]:
             # 주간 달력일 때만 예약 팝업 실행!
             add_res_modal(raw_clicked_date, df_m)
         else:
-            # 월간(dayGridMonth) 등일 때는 팝업 대신 안내 메시지만 ㅋ
-            st.toast("💡 예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")!", icon="📅")
+            # 중복된 코드와 기호를 모두 지우고 이 한 줄만 남겨주세요 ㅋ
+            st.toast("예약 등록은 주간 탭에서 시간을 클릭해 주세요!", icon="📅")클릭해 주세요!", icon="📅")!", icon="📅")
             
 with tabs[1]:
     st.dataframe(df_r, use_container_width=True, hide_index=True)
