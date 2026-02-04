@@ -54,13 +54,20 @@ def manage_gsheet(sheet, row=None, action="add", key=None, extra=None):
         f_row = []
         for v in (row or []):
             val = str(v).strip()
-            # 💡 지능형 필터: 숫자로만 된 짧은 값(순번 등)은 따옴표 없이 보냄 ㅋ
-            # 단, 연락처(010...)나 생년월일(1990...)처럼 0으로 시작하거나 긴 숫자는 
-            # 시트에서 숫자로 인식하면 앞자리 0이 잘리므로 따옴표를 유지합니다.
-            if val.isdigit() and len(val) < 5: 
-                f_row.append(val) # 순수한 숫자로 전달
+            
+            # 💡 [핵심 로직] 
+            # 1. 값이 비어있으면 그냥 빈값
+            if not val:
+                f_row.append("")
+            # 2. '0'으로 시작하는 숫자(연락처 등)는 무조건 따옴표 붙임 (0 보존)
+            elif val.isdigit() and val.startswith("0"):
+                f_row.append(f"'{val}")
+            # 3. 그 외의 순수 숫자(순번, 생년월일 등)는 따옴표 없이 숫자로 보냄
+            elif val.isdigit():
+                f_row.append(val)
+            # 4. 문자가 섞인 경우 따옴표 붙여서 텍스트로 보호
             else:
-                f_row.append(f"'{val}") # 텍스트 보존용 따옴표 유지
+                f_row.append(f"'{val}")
         
         params = {"sheet": sheet, "values": json.dumps(f_row), "action": action, "key": key}
         if extra: params.update(extra)
