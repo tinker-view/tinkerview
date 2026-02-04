@@ -229,7 +229,7 @@ with tabs[0]:
             
             # ✨ 중요: '기타' 열에 저장된 [10:00] 형태의 시간 정보를 추출
             # 주간 시간표(timeGrid)는 시간이 있어야 해당 칸에 표시됩니다. ㅋ
-            res_time = "10:00" # 기본값
+            res_time = str(r['시간']) if '시간' in r else "10:00" # 기본값
             time_match = re.search(r'\[(\d{2}:\d{2})\]', str(r['기타']))
             if time_match:
                 res_time = time_match.group(1)
@@ -341,12 +341,13 @@ with tabs[1]:
         # '기타' 열의 [10:00]에서 시간을 뽑아 정렬용 임시 컬럼 생성
         filtered_df['정렬용시간'] = filtered_df['기타'].str.extract(r'\[(\d{2}:\d{2})\]').fillna("00:00")
 
+        # 정렬 로직 부분
         if sort_order == "최신 날짜순":
-            filtered_df = filtered_df.sort_values(by=['날짜', '정렬용시간'], ascending=[False, False])
+            filtered_df = filtered_df.sort_values(by=['날짜', '시간'], ascending=[False, False])
         elif sort_order == "오래된 날짜순":
-            filtered_df = filtered_df.sort_values(by=['날짜', '정렬용시간'], ascending=[True, True])
-        else: # 시간순 (오늘 일정을 시간별로 보기 좋게)
-            filtered_df = filtered_df.sort_values(by=['정렬용시간', '날짜'], ascending=[True, True])
+            filtered_df = filtered_df.sort_values(by=['날짜', '시간'], ascending=[True, True])
+        else: # 시간순
+            filtered_df = filtered_df.sort_values(by=['시간', '날짜'], ascending=[True, True])sort_values(by=['정렬용시간', '날짜'], ascending=[True, True])
 
         # 불필요한 임시 컬럼 삭제 후 출력
         display_df = filtered_df.drop(columns=['정렬용시간'])
