@@ -65,14 +65,25 @@ def format_birth(b):
 # 📅 예약 등록 팝업 (회원 검색 및 날짜 보정 완료)
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
-    # 클릭된 원본: "2026-02-04T02:00:00Z" (실제 클릭은 11:00)
-    # 하지만 우리 눈엔 11:00로 보였으니, 시차(+9시간)를 강제로 더해서 복구합니다! ㅋ
-    
-    raw_dt = datetime.strptime(clicked_date.replace("Z", ""), "%Y-%m-%dT%H:%M:%S")
-    kor_dt = raw_dt + timedelta(hours=9) # 9시간 더하기 ㅋ
-    
-    fixed_date = kor_dt.date()
-    fixed_time = kor_dt.time()
+    # 💡 어떤 형식이 와도 안전하게 날짜/시간 추출
+    try:
+        # T를 기준으로 날짜와 시간 분리
+        dt_parts = clicked_date.replace("Z", "").split("T")
+        date_str = dt_parts[0]
+        time_str = dt_parts[1][:5] # "10:00:00"이든 "10:00"이든 앞에서 5글자만!
+        
+        # 일단 기준 시간을 만들고
+        base_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+        
+        # 🌏 시차 보정: 주간 클릭 시 9시간 밀리는 현상 해결 (+9시간)
+        kor_dt = base_dt + timedelta(hours=9)
+        
+        fixed_date = kor_dt.date()
+        fixed_time = kor_dt.time()
+    except Exception as e:
+        # 혹시라도 에러 나면 오늘 날짜/시간으로 비상 대피 ㅋ
+        fixed_date = datetime.now().date()
+        fixed_time = datetime.now().time()
 
     st.write(f"📅 선택된 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
 
