@@ -190,35 +190,41 @@ def show_detail(m_info, h_df):
 
     t_v, t_s, t_e = st.tabs(["🔍 상세조회", "💰 매출등록", "✏️ 정보수정"])
     
+    # --- 1. 상세조회 (인터페이스 대수술 ㅋ) ---
     with t_v:
-        # 1. 👑 이름 강조 타이틀 (배경 빼고 깔끔하게)
-        st.markdown(f"### 👑 <span style='color:#1E90FF;'>{m_info['성함']}</span> <span style='font-size:16px; color:#666;'>회원님 프로필</span>", unsafe_allow_html=True)
-        
-        # 2. 📋 핵심 정보 한 줄 요약 (metric 대신 깔끔한 텍스트로)
+        # 👑 상단 이름 바
         st.markdown(f"""
-            <div style="background-color:#f8f9fa; padding:10px; border-radius:5px; border-left:5px solid #1E90FF;">
-                <b>🔢 순번:</b> {m_info['순번']}번 | 
-                <b>🚻 성별:</b> {m_info['성별']} | 
-                <b>🎂 생년:</b> {format_birth(m_info['생년월일'])} | 
-                <b>📅 최초방문:</b> {m_info['최초방문일']}
+            <div style="background-color:#1E90FF; padding:12px; border-radius:8px; margin-bottom:15px; text-align:center;">
+                <h3 style="margin:0; color:white;">👑 {m_info['성함']} <span style="font-size:14px; opacity:0.8;">회원님</span></h3>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # 📋 핵심 요약 카드 (가독성 최우선 ㅋ)
+        st.markdown(f"""
+            <div style="background-color:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #dee2e6; line-height:1.8;">
+                <span style="color:#666;">🔢 순번:</span> <b>{m_info['순번']}번</b> &nbsp; | &nbsp;
+                <span style="color:#666;">🚻 성별:</span> <b>{m_info['성별']}</b> &nbsp; | &nbsp;
+                <span style="color:#666;">🎂 생년:</span> <b>{format_birth(m_info['생년월일'])}</b> &nbsp; | &nbsp;
+                <span style="color:#666;">🗓️ 최초방문:</span> <b>{m_info['최초방문일']}</b>
             </div>
         """, unsafe_allow_html=True)
         
-        st.write("") # 간격 조절
+        st.write("") 
 
-        # 3. 상세 정보
+        # 🗂️ 상세 인포메이션 레이아웃
         col_l, col_r = st.columns(2)
         with col_l:
-            st.write(f"**📞 연락처:** {format_phone(m_info['연락처'])}")
-            st.write(f"**🏠 주소:** {m_info['주소']}")
+            st.markdown(f"📱 **연락처**<br>{format_phone(m_info['연락처'])}", unsafe_allow_html=True)
+            st.markdown(f"👨‍🏫 **담당 상담사**<br>{m_info['상담사']}", unsafe_allow_html=True)
         with col_r:
-            st.write(f"**👨‍🏫 담당:** {m_info['상담사']}")
-            # 방문일이 여기서도 보이면 좋겠죠 ㅋ
-            st.write(f"**🗓️ 등록일:** {m_info['최초방문일']}")
+            st.markdown(f"🏠 **주소**<br>{m_info['주소'] if m_info['주소'] else '-'}", unsafe_allow_html=True)
+            st.markdown(f"📅 **데이터 등록일**<br>{m_info['최초방문일']}", unsafe_allow_html=True)
             
-        st.info(f"**📝 비고(특이사항):**\n\n{m_info['비고(특이사항)']}")
+        st.markdown("---")
+        st.markdown(f"📝 **비고(특이사항)**")
+        st.info(m_info['비고(특이사항)'] if m_info['비고(특이사항)'] else "입력된 특이사항이 없습니다.")
         
-        st.divider()
+        # 💰 매출 내역 리스트
         st.write("#### 💰 최근 매출 내역")
         if not h_df.empty:
             for i, r in h_df.iterrows():
@@ -230,6 +236,7 @@ def show_detail(m_info, h_df):
         else: 
             st.write("내역 없음")
 
+    # --- 2. 매출등록 ---
     with t_s:
         s_date = st.date_input("결제 날짜", datetime.now())
         c_head, c_reset = st.columns([7, 3])
@@ -256,49 +263,42 @@ def show_detail(m_info, h_df):
                 if manage_gsheet("schedules", [m_info['성함'], s_date.strftime('%Y-%m-%d'), f_item, f_coun, vs, vt, vj, f_memo]):
                     st.session_state.sel_items = []; st.cache_data.clear(); st.rerun()
 
+    # --- 3. 정보수정 (최초방문일 등 누락 방지 ㅋ) ---
     with t_e:
         with st.form("ef"):
             st.write("#### 회원 정보 수정")
             
-            # 1. 순번과 성함 (순번은 숫자로 수정 가능하게) ㅋ
-            c1, c2 = st.columns(2)
+            # 레이아웃 정렬 ㅋ
+            c1, c2, c3 = st.columns([1, 2, 2])
             e_no = c1.text_input("순번", value=str(m_info['순번']))
             e_n = c2.text_input("성함", value=m_info['성함'])
+            e_v = c3.text_input("최초방문일", value=m_info['최초방문일'])
             
-            # 2. 연락처와 생년월일
-            raw_p = st.text_input("연락처", value=m_info['연락처'])
+            c4, c5 = st.columns(2)
+            raw_p = c4.text_input("연락처", value=m_info['연락처'])
             e_p = re.sub(r'\D', '', raw_p) 
-            
-            raw_b = st.text_input("생년월일", value=m_info['생년월일'])
+            raw_b = c5.text_input("생년월일", value=m_info['생년월일'])
             e_b = re.sub(r'\D', '', raw_b) 
             
-            # 3. 성별과 주소 (성별 선택 추가!) ㅋ
-            c3, c4 = st.columns([1, 3])
+            c6, c7 = st.columns([1, 3])
             gender_options = ["남자", "여자"]
-            default_g_idx = gender_options.index(m_info['성별']) if m_info['성별'] in gender_options else 0
-            e_g = c3.selectbox("성별", options=gender_options, index=default_g_idx)
-            e_a = c4.text_input("주소", value=m_info['주소'])
+            # 성별이 '남' 혹은 '여'로 저장되어 있을 경우를 위한 방어 로직 ㅋ
+            curr_gender = "남자" if "남" in str(m_info['성별']) else "여자"
+            e_g = c6.selectbox("성별", options=gender_options, index=gender_options.index(curr_gender))
+            e_a = c7.text_input("주소", value=m_info['주소'])
             
-            # 4. 상담사 및 기타 정보
             e_c = st.text_input("상담사", value=m_info['상담사'])
             e_m = st.text_area("비고", value=m_info['비고(특이사항)'])
             
             if st.form_submit_button("✅ 정보 수정 완료"):
                 try:
-                    # 🧼 숫자 데이터 세탁 (manage_gsheet가 똑똑하게 처리해줄 거임!) ㅋ
-                    clean_no = e_no.strip()
-                    clean_phone = e_p
-                    clean_birth = e_b
-                    
-                    # 시트 순서에 맞춰서 리스트 구성: B(순번), C(성함), D(연락처), E(생년월일), F(성별), G(주소)...
-                    up_row = [clean_no, e_n, clean_phone, clean_birth, e_g, e_a, m_info['최초방문일'], e_c, e_m]
-                    
+                    up_row = [e_no.strip(), e_n, e_p, e_b, e_g, e_a, e_v, e_c, e_m]
                     if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
-                        st.success(f"✅ {e_n} 님 정보(순번/성별 포함)가 완벽하게 수정되었습니다!")
+                        st.success(f"✅ {e_n} 님 정보가 수정되었습니다!")
                         st.cache_data.clear()
                         st.rerun()
                 except Exception as e:
-                    st.error(f"수정 중 오류 발생: {e}")
+                    st.error(f"오류 발생: {e}")
 
 # 4. 메인 UI
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
