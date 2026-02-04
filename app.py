@@ -287,22 +287,14 @@ with tabs[1]:
     st.subheader("📋 전체 예약 내역 관리")
 
     if not df_r.empty:
-        # --- 🔍 필터 및 정렬 옵션 ---
         col1, col2, col3 = st.columns(3)
-        
         with col1:
-            # 1. 날짜 범위 필터
-            date_range = st.date_input("날짜 범위 선택", [datetime.now().date(), datetime.now().date() + timedelta(days=7)])
-        
+            date_range = st.date_input("날짜 범위 선택", [datetime.now().date(), datetime.now().date() + timedelta(days=7)], key="mgr_date_range")
         with col2:
-            # 2. 검색어 필터 (성함 또는 상품명)
-            search_term = st.text_input("검색 (성함/상품명)", placeholder="검색어 입력...")
-
+            search_term = st.text_input("검색 (성함/상품명)", placeholder="검색어 입력...", key="mgr_search")
         with col3:
-            # 3. 정렬 순서 선택
-            sort_order = st.selectbox("정렬 기준", ["최신 날짜순", "오래된 날짜순", "시간순(오늘 기준)"])
+            sort_order = st.selectbox("정렬 기준", ["최신 날짜순", "오래된 날짜순", "시간순"], key="mgr_sort")
 
-        # --- ⚙️ 데이터 필터링 로직 ---
         filtered_df = df_r.copy()
 
         # 날짜 필터 적용
@@ -311,18 +303,11 @@ with tabs[1]:
             filtered_df['날짜'] = pd.to_datetime(filtered_df['날짜']).dt.date
             filtered_df = filtered_df[(filtered_df['날짜'] >= start_date) & (filtered_df['날짜'] <= end_date)]
 
-        # 검색어 필터 적용
+        # 검색 필터 적용
         if search_term:
-            filtered_df = filtered_df[
-                filtered_df['성함'].str.contains(search_term, na=False) | 
-                filtered_df['상품명'].str.contains(search_term, na=False)
-            ]
+            filtered_df = filtered_df[filtered_df['성함'].str.contains(search_term, na=False) | filtered_df['상품명'].str.contains(search_term, na=False)]
 
-        # --- ⏰ 시간순 정렬을 위한 시간 추출 로직 ---
-        # '기타' 열의 [10:00]에서 시간을 뽑아 정렬용 임시 컬럼 생성
-        filtered_df['정렬용시간'] = filtered_df['기타'].str.extract(r'\[(\d{2}:\d{2})\]').fillna("00:00")
-
-        # 정렬 로직 부분
+        # --- ⏰ 정렬 로직 (새로운 '시간' 컬럼 활용) ---
         if sort_order == "최신 날짜순":
             filtered_df = filtered_df.sort_values(by=['날짜', '시간'], ascending=[False, False])
         elif sort_order == "오래된 날짜순":
@@ -330,13 +315,8 @@ with tabs[1]:
         else: # 시간순
             filtered_df = filtered_df.sort_values(by=['시간', '날짜'], ascending=[True, True])
 
-        # 불필요한 임시 컬럼 삭제 후 출력
-        display_df = filtered_df.drop(columns=['정렬용시간'])
-        
-        # 데이터프레임 출력
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
-        
-        st.write(f"💡 총 **{len(display_df)}건**의 예약이 검색되었습니다.")
+        st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+        st.write(f"💡 총 **{len(filtered_df)}건**의 예약이 검색되었습니다.")
     else:
         st.info("등록된 예약 내역이 없습니다.")
 
