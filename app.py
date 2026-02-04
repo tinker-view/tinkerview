@@ -303,60 +303,7 @@ with tabs[0]:
             add_res_modal(raw_date, df_m)
             
 with tabs[1]:
-    st.subheader("📋 전체 예약 내역 관리")
-
-    if not df_r.empty:
-        # --- 🔍 필터 및 정렬 옵션 ---
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            # 1. 날짜 범위 필터
-            date_range = st.date_input("날짜 범위 선택", [datetime.now().date(), datetime.now().date() + timedelta(days=7)])
-        
-        with col2:
-            # 2. 검색어 필터 (성함 또는 상품명)
-            search_term = st.text_input("검색 (성함/상품명)", placeholder="검색어 입력...")
-
-        with col3:
-            # 3. 정렬 순서 선택
-            sort_order = st.selectbox("정렬 기준", ["최신 날짜순", "오래된 날짜순", "시간순(오늘 기준)"])
-
-        # --- ⚙️ 데이터 필터링 로직 ---
-        filtered_df = df_r.copy()
-
-        # 날짜 필터 적용
-        if len(date_range) == 2:
-            start_date, end_date = date_range
-            filtered_df['날짜'] = pd.to_datetime(filtered_df['날짜']).dt.date
-            filtered_df = filtered_df[(filtered_df['날짜'] >= start_date) & (filtered_df['날짜'] <= end_date)]
-
-        # 검색어 필터 적용
-        if search_term:
-            filtered_df = filtered_df[
-                filtered_df['성함'].str.contains(search_term, na=False) | 
-                filtered_df['상품명'].str.contains(search_term, na=False)
-            ]
-
-        # --- ⏰ 시간순 정렬을 위한 시간 추출 로직 ---
-        # '기타' 열의 [10:00]에서 시간을 뽑아 정렬용 임시 컬럼 생성
-        filtered_df['정렬용시간'] = filtered_df['기타'].str.extract(r'\[(\d{2}:\d{2})\]').fillna("00:00")
-
-        if sort_order == "최신 날짜순":
-            filtered_df = filtered_df.sort_values(by=['날짜', '정렬용시간'], ascending=[False, False])
-        elif sort_order == "오래된 날짜순":
-            filtered_df = filtered_df.sort_values(by=['날짜', '정렬용시간'], ascending=[True, True])
-        else: # 시간순 (오늘 일정을 시간별로 보기 좋게)
-            filtered_df = filtered_df.sort_values(by=['정렬용시간', '날짜'], ascending=[True, True])
-
-        # 불필요한 임시 컬럼 삭제 후 출력
-        display_df = filtered_df.drop(columns=['정렬용시간'])
-        
-        # 데이터프레임 출력
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
-        
-        st.write(f"💡 총 **{len(display_df)}건**의 예약이 검색되었습니다.")
-    else:
-        st.info("등록된 예약 내역이 없습니다.")
+    st.dataframe(df_r, use_container_width=True, hide_index=True)
 
 with tabs[2]: # 회원 관리 탭
     st.subheader("👥 회원 관리")
