@@ -341,13 +341,12 @@ with tabs[1]:
         # '기타' 열의 [10:00]에서 시간을 뽑아 정렬용 임시 컬럼 생성
         filtered_df['정렬용시간'] = filtered_df['기타'].str.extract(r'\[(\d{2}:\d{2})\]').fillna("00:00")
 
-        # 정렬 로직 부분
         if sort_order == "최신 날짜순":
-            filtered_df = filtered_df.sort_values(by=['날짜', '시간'], ascending=[False, False])
+            filtered_df = filtered_df.sort_values(by=['날짜', '정렬용시간'], ascending=[False, False])
         elif sort_order == "오래된 날짜순":
-            filtered_df = filtered_df.sort_values(by=['날짜', '시간'], ascending=[True, True])
-        else: # 시간순
-            filtered_df = filtered_df.sort_values(by=['시간', '날짜'], ascending=[True, True])sort_values(by=['정렬용시간', '날짜'], ascending=[True, True])
+            filtered_df = filtered_df.sort_values(by=['날짜', '정렬용시간'], ascending=[True, True])
+        else: # 시간순 (오늘 일정을 시간별로 보기 좋게)
+            filtered_df = filtered_df.sort_values(by=['정렬용시간', '날짜'], ascending=[True, True])
 
         # 불필요한 임시 컬럼 삭제 후 출력
         display_df = filtered_df.drop(columns=['정렬용시간'])
