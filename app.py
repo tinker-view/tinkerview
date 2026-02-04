@@ -216,15 +216,22 @@ with tabs[0]:
                 "borderColor": event_color
             })
 
-        # 3. 달력 옵션 설정
+        # 3. 달력 옵션 설정 (한글화 버전)
         calendar_options = {
             "headerToolbar": {
                 "left": "prev,next today",
                 "center": "title",
                 "right": "dayGridMonth,dayGridWeek"
             },
-            "initialView": "dayGridMonth", # 초기 뷰 명시
+            "initialView": "dayGridMonth",
             "selectable": True,
+            "locale": "ko",  # 요일 및 월 이름을 한글로!
+            "buttonText": {  # 상단 버튼 영어를 한글로!
+                "today": "오늘",
+                "month": "월간",
+                "week": "주간",
+                "day": "일간"
+            }
         }
         
         # 4. 달력 위젯 호출
