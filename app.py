@@ -217,89 +217,62 @@ tabs = st.tabs(["📅 스케줄 달력", "📋 예약 관리", "👥 회원 관�
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
     
+    # 1. 이벤트 데이터 생성 (새 시트 구조 반영)
+    events = []
     if not df_r.empty:
-        # 1. 달력 이벤트 데이터 생성
-        events = []
         for _, r in df_r.iterrows():
-            # 색상 지정 로직
             event_color = "#3D5AFE"
             if "상담" in str(r['상품명']): event_color = "#FF9100"
             elif "HP" in str(r['상품명']): event_color = "#00C853"
             elif "S" in str(r['상품명']): event_color = "#D500F9"
             
-            # ✨ 중요: '기타' 열에 저장된 [10:00] 형태의 시간 정보를 추출
-            # 주간 시간표(timeGrid)는 시간이 있어야 해당 칸에 표시됩니다. ㅋ
-            res_time = str(r['시간']) if '시간' in r else "10:00" # 기본값
-            time_match = re.search(r'\[(\d{2}:\d{2})\]', str(r['기타']))
-            if time_match:
-                res_time = time_match.group(1)
+            # ✨ 변경된 점: '기타'에서 정규표현식으로 찾지 않고, '시간' 컬럼을 바로 씁니다! ㅋ
+            res_time = str(r['시간']) if '시간' in r and pd.notna(r['시간']) else "10:00"
             
             events.append({
                 "title": f"{r['성함']} ({r['상품명']})",
-                "start": f"{r['날짜']}T{res_time}:00", # 날짜와 시간을 합쳐서 전달 ㅋ
-                "allDay": False, # 주간 시간표 칸에 들어가려면 False여야 합니다 ㅋ
+                "start": f"{r['날짜']}T{res_time}:00",
+                "allDay": False,
                 "backgroundColor": event_color,
                 "borderColor": event_color,
             })
 
-        # 2. 달력 옵션 설정 (한글화 + 24시간제 + 근무시간)
-        calendar_options = {
-            "headerToolbar": {
-                "left": "prev,next today",
-                "center": "title",
-                "right": "dayGridMonth,timeGridWeek"
-            },
-            "initialView": "dayGridMonth",
-            "selectable": True,
-            "locale": "ko",
-            "buttonText": {
-                "today": "오늘",
-                "month": "월간",
-                "week": "주간",
-            },
-            # ⏰ 시간 표시 설정 (24시간제 & 근무시간)
-            "slotMinTime": "10:00:00", # 시작 시간 (오전 10시)
-            "slotMaxTime": "18:00:00", # 종료 시간 (오후 6시)
-            "slotLabelFormat": {
-                "hour": "2-digit",
-                "minute": "2-digit",
-                "hour12": False # ✅ 오전/오후 표시 없이 깔끔하게 ㅋ
-            },
-            "eventTimeFormat": { # 이벤트 내 시간 표시도 24시간제
-                "hour": "2-digit",
-                "minute": "2-digit",
-                "hour12": False
-            },
-            "allDaySlot": False,
-        }
-        
-        # 3. 달력 위젯 호출
-        state = calendar(
-            events=events,
-            options=calendar_options,
-            key="calendar_main_v4" # 캐시 꼬임 방지를 위해 키 변경 ㅋ
-        )
+    # 2. 달력 옵션 설정
+    calendar_options = {
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek"
+        },
+        "initialView": "dayGridMonth",
+        "selectable": True,
+        "locale": "ko",
+        "buttonText": {"today": "오늘", "month": "월간", "week": "주간"},
+        "slotMinTime": "10:00:00",
+        "slotMaxTime": "18:00:00",
+        "slotLabelFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
+        "eventTimeFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
+        "allDaySlot": False,
+    }
+    
+    # 3. 달력 위젯 호출 (데이터 유무와 상관없이 항상 실행하여 state 정의!)
+    state = calendar(
+        events=events,
+        options=calendar_options,
+        key="calendar_final_v6"
+    )
 
-        # 4. 날짜 클릭 시 처리 (시차 보정 버전)
+    # 4. 날짜 클릭 처리 (정확한 시차 보정 로직 포함)
     if state.get("dateClick"):
-        raw_date = str(state["dateClick"]["date"]) # 예: "2026-02-04T11:00:00Z"
-        
-        # 💡 T 뒤에 오는 시간을 확인 (시차 때문에 꼬인 시간 그대로 가져옴)
-        # 보통 월간은 "T00:00:00" 혹은 시차 보정된 "T09:00:00", "T13:00:00" 등으로 옴
-        # 주간은 클릭한 시간 그대로 옴
+        raw_date = str(state["dateClick"]["date"])
         
         # 시간 부분만 추출 (T 뒤의 8글자)
         clicked_time = raw_date.split("T")[1][:8] if "T" in raw_date else "00:00:00"
         
-        # 1. 월간 클릭 차단: 시간이 정각(00시)이거나 특정 기본값이면 월간으로 간주
+        # 월간/주간 판별 및 팝업 실행
         if clicked_time == "00:00:00" or not "T" in raw_date:
             st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
         else:
-            # 2. 주간 클릭: 시차 계산하지 말고 '보이는 글자 그대로' 전달!
-            # 11:00 클릭 -> 서버에 02:00로 전달됨 -> 이걸 다시 11:00로 복원하는 마법 ㅋ
-            
-            # 주간 뷰에서는 클릭한 칸의 '정확한 시간'이 데이터에 포함되어 있습니다.
-            # 이 데이터를 add_res_modal에 그대로 넘겨서 처리합니다.
             add_res_modal(raw_date, df_m)
             
 with tabs[1]:
