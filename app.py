@@ -51,12 +51,24 @@ def load_data(sheet_name):
 
 def manage_gsheet(sheet, row=None, action="add", key=None, extra=None):
     try:
-        f_row = [f"'{str(v)}" for v in (row or [])]
+        f_row = []
+        for v in (row or []):
+            val = str(v).strip()
+            # 💡 지능형 필터: 숫자로만 된 짧은 값(순번 등)은 따옴표 없이 보냄 ㅋ
+            # 단, 연락처(010...)나 생년월일(1990...)처럼 0으로 시작하거나 긴 숫자는 
+            # 시트에서 숫자로 인식하면 앞자리 0이 잘리므로 따옴표를 유지합니다.
+            if val.isdigit() and len(val) < 5: 
+                f_row.append(val) # 순수한 숫자로 전달
+            else:
+                f_row.append(f"'{val}") # 텍스트 보존용 따옴표 유지
+        
         params = {"sheet": sheet, "values": json.dumps(f_row), "action": action, "key": key}
         if extra: params.update(extra)
+        
         r = requests.get(DEPLOY_URL, params=params, timeout=15)
         return "Success" in r.text
-    except: return False
+    except: 
+        return False
     
 # 3. 유틸리티 및 팝업
 def format_phone(p):
@@ -223,9 +235,26 @@ def show_detail(m_info, h_df):
             e_c = st.text_input("상담사", value=m_info['상담사'])
             e_m = st.text_area("비고", value=m_info['비고(특이사항)'])
             if st.form_submit_button("✅ 정보 수정 완료"):
-                up_row = [m_info['순번'], e_n, e_p, e_b, m_info['성별'], e_a, m_info['최초방문일'], e_c, e_m]
-                if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
-                    st.cache_data.clear(); st.rerun()
+                # 🧼 모든 숫자형 데이터를 깨끗하게 세탁 ㅋ
+                try:
+                    # 순번에서 따옴표(') 제거하고 순수 숫자로 변환
+                    raw_no = str(m_info['순번']).replace("'", "").strip()
+                    clean_no = int(raw_no) if raw_no.isdigit() else raw_no
+                    
+                    # 연락처와 생년월일도 숫자만 남기기
+                    clean_phone = re.sub(r'\D', '', e_p)
+                    clean_birth = re.sub(r'\D', '', e_b)
+                    
+                    # ✨ up_row 구성 (순번을 따옴표 없이 전달)
+                    up_row = [clean_no, e_n, clean_phone, clean_birth, m_info['성별'], e_a, m_info['최초방문일'], e_c, e_m]
+                    
+                    # manage_gsheet 호출 (여기서 f"'{str(v)}" 로직이 있다면 숫자일 땐 따옴표 안 붙게 체크 필요) ㅋ
+                    if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
+                        st.success(f"✅ {e_n} 님 정보가 숫자로 깔끔하게 저장되었습니다!")
+                        st.cache_data.clear()
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"수정 중 오류 발생: {e}")
 
 # 4. 메인 UI
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
