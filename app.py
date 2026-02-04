@@ -56,12 +56,18 @@ def manage_gsheet(sheet, row=None, action="add", key=None, extra=None):
             val = str(v).strip()
             if not val:
                 f_row.append("")
-            # 💡 연락처처럼 0으로 시작하는 경우만 따옴표 보호!
-            elif val.isdigit() and val.startswith("0"):
+                continue
+
+            # 1. 연락처 보호: 0으로 시작하고 숫자로만 된 경우 (010...)
+            if val.isdigit() and val.startswith("0"):
                 f_row.append(f"'{val}")
-            # 💡 그 외 모든 숫자(순번, 생년월일, 최초방문일 등)는 따옴표 없이 숫자로! ㅋ
-            elif val.isdigit():
-                f_row.append(val)
+            
+            # 2. 숫자/날짜 판별: 숫자, 점(.), 하이픈(-)만 포함된 경우 따옴표 제거! ㅋ
+            # 예: 48, 20260204, 2026.02.04, 2026-02-04 모두 포함
+            elif re.match(r'^[0-9.-]+$', val):
+                f_row.append(val) 
+            
+            # 3. 그 외 문자가 섞인 텍스트
             else:
                 f_row.append(f"'{val}")
         
