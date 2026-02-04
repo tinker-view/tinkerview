@@ -197,31 +197,37 @@ tabs = st.tabs(["📅 스케줄 달력", "📋 예약 관리", "👥 회원 관�
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
     
-    # 1. 예약 데이터 존재 여부 확인
     if not df_r.empty:
-        # 2. 달력 이벤트 데이터 생성
+        # 1. 달력 이벤트 데이터 생성
         events = []
         for _, r in df_r.iterrows():
-            # 색상 지정 로직 유지
+            # 색상 지정 로직
             event_color = "#3D5AFE"
             if "상담" in str(r['상품명']): event_color = "#FF9100"
             elif "HP" in str(r['상품명']): event_color = "#00C853"
             elif "S" in str(r['상품명']): event_color = "#D500F9"
             
+            # ✨ 중요: '기타' 열에 저장된 [10:00] 형태의 시간 정보를 추출
+            # 주간 시간표(timeGrid)는 시간이 있어야 해당 칸에 표시됩니다. ㅋ
+            res_time = "10:00" # 기본값
+            time_match = re.search(r'\[(\d{2}:\d{2})\]', str(r['기타']))
+            if time_match:
+                res_time = time_match.group(1)
+            
             events.append({
                 "title": f"{r['성함']} ({r['상품명']})",
-                "start": str(r['날짜']), # 문자열인지 확실히 확인
-                "allDay": True,
+                "start": f"{r['날짜']}T{res_time}:00", # 날짜와 시간을 합쳐서 전달 ㅋ
+                "allDay": False, # 주간 시간표 칸에 들어가려면 False여야 합니다 ㅋ
                 "backgroundColor": event_color,
-                "borderColor": event_color
+                "borderColor": event_color,
             })
 
-        # 3. 달력 옵션 설정 (한글화 + 주간 시간표 적용)
+        # 2. 달력 옵션 설정 (한글화 + 24시간제 + 근무시간)
         calendar_options = {
             "headerToolbar": {
                 "left": "prev,next today",
                 "center": "title",
-                "right": "dayGridMonth,timeGridWeek" # week를 timeGrid로 변경 ㅋ
+                "right": "dayGridMonth,timeGridWeek"
             },
             "initialView": "dayGridMonth",
             "selectable": True,
@@ -231,34 +237,37 @@ with tabs[0]:
                 "month": "월간",
                 "week": "주간",
             },
-            # ⏰ 시간 표시 설정 추가
-            "slotMinTime": "09:00:00", # 시작 시간 (오전 9시)
-            "slotMaxTime": "22:00:00", # 종료 시간 (오후 10시)
+            # ⏰ 시간 표시 설정 (24시간제 & 근무시간)
+            "slotMinTime": "10:00:00", # 시작 시간 (오전 10시)
+            "slotMaxTime": "18:00:00", # 종료 시간 (오후 6시)
             "slotLabelFormat": {
-                "hour": "numeric",
+                "hour": "2-digit",
                 "minute": "2-digit",
-                "omitZeroMinute": False,
-                "meridiem": "short" # 오전/오후 표시
+                "hour12": False # ✅ 오전/오후 표시 없이 깔끔하게 ㅋ
             },
-            "allDaySlot": False, # 상단 '종일' 칸 숨기기 (깔끔하게)
+            "eventTimeFormat": { # 이벤트 내 시간 표시도 24시간제
+                "hour": "2-digit",
+                "minute": "2-digit",
+                "hour12": False
+            },
+            "allDaySlot": False,
         }
         
-        # 4. 달력 위젯 호출
-        # key값을 "calendar_main_fixed"로 바꿔서 캐시를 새로 잡게 합니다.
+        # 3. 달력 위젯 호출
         state = calendar(
             events=events,
             options=calendar_options,
-            key="calendar_main_fixed"
+            key="calendar_main_v4" # 캐시 꼬임 방지를 위해 키 변경 ㅋ
         )
 
-        # 5. 날짜 클릭 시 예약 등록 팝업
+        # 4. 날짜 클릭 시 예약 등록 팝업
         if state.get("dateClick"):
             clicked_date = state["dateClick"]["date"].split("T")[0]
             add_res_modal(clicked_date, df_m)
     else:
         st.info("현재 등록된 예약 내역이 없습니다. 날짜를 클릭하여 새 예약을 등록해 보세요!")
-        # 데이터가 없어도 달력은 보여줘야 하므로 빈 리스트로 띄웁니다.
         calendar(events=[], options={"headerToolbar": {"center": "title"}}, key="empty_cal")
+        
 with tabs[1]:
     st.dataframe(df_r, use_container_width=True, hide_index=True)
 
