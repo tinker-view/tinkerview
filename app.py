@@ -271,9 +271,12 @@ def show_detail(m_info, h_df):
             e_m = st.text_area("비고", value=m_info['비고(특이사항)'])
             
             if st.form_submit_button("✅ 정보 수정 완료"):
-                up_row = [e_no.strip(), e_n, e_p, e_b, e_g, e_a, e_v, e_c, e_m]
+                # 최초방문일에서도 숫자, 점, 하이픈 외에는 다 제거 ㅋ
+                clean_v = re.sub(r'[^0-9.-]', '', e_v)
+                
+                up_row = [e_no.strip(), e_n, e_p, e_b, e_g, e_a, clean_v, e_c, e_m]
                 if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
-                    st.success("수정 완료! ㅋ")
+                    st.success("수정 완료! 이제 따옴표가 사라질 겁니다. ㅋ")
                     st.cache_data.clear(); st.rerun()
 
 # 4. 메인 UI
