@@ -10,7 +10,7 @@ from streamlit_calendar import calendar
 # 1. 페이지 설정 및 보안
 st.set_page_config(page_title="K-View", layout="wide")
 
-DEPLOY_URL = "https://script.google.com/macros/s/AKfycbwl55ojHpZtu5Ue2V3EOnq58po9Xc2UxrdlF7-_FtTIWweHikNrj8d1N3S334OLWXit/exec"
+DEPLOY_URL = "https://script.google.com/macros/s/AKfycbyy-bnPp9gZvvOSlFUFsvkGcYaTrIoR4Pyg7h6-9iDPOvIvvKHP2iqX79VCtpRUMfUz/exec"
 SPREADSHEET_ID = "1o704HhhIJrBCux7ibPdYDDq6Z00J9QoogZ2oq6Fjgfc"
 READ_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet="
 
