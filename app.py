@@ -34,17 +34,25 @@ if not st.session_state.authenticated:
 # 2. 데이터 로드 및 시트 관리
 @st.cache_data(ttl=0)
 def load_data(sheet_name):
+    # ✨ 중요: 구글 시트의 실제 컬럼 개수와 이름을 여기에 똑같이 맞춰야 합니다! ㅋ
     expected = {
         "members": ["순번", "성함", "연락처", "생년월일", "성별", "주소", "최초방문일", "상담사", "비고(특이사항)"],
         "schedules": ["성함", "날짜", "상품명", "상담사", "수가", "특가", "정산", "비고"],
-        "reservations": ["성함", "날짜", "상품명", "상담사", "기타"]
+        "reservations": ["성함", "날짜", "상품명", "상담사", "시간", "특이사항"] # ✅ 순서/개수 패치 완료!
     }
     try:
         url = f"{READ_URL}{sheet_name}&t={int(time.time())}"
         data = pd.read_csv(url, dtype=object).fillna("")
-        if not data.empty: data.columns = expected[sheet_name]
+        if not data.empty:
+            # 가져온 데이터의 열 개수가 설정과 맞을 때만 이름을 바꿉니다. ㅋ
+            if len(data.columns) == len(expected[sheet_name]):
+                data.columns = expected[sheet_name]
+            else:
+                # 개수가 다르면 일단 시트의 첫 줄을 그대로 씁니다. (에러 방지)
+                pass
         return data
-    except: return pd.DataFrame(columns=expected.get(sheet_name, []))
+    except Exception as e:
+        return pd.DataFrame(columns=expected.get(sheet_name, []))
 
 def manage_gsheet(sheet, row=None, action="add", key=None, extra=None):
     try:
