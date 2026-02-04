@@ -269,15 +269,17 @@ with tabs[0]:
             key="calendar_main_v4" # 캐시 꼬임 방지를 위해 키 변경 ㅋ
         )
 
-        # 4. 날짜 클릭 시 예약 등록 팝업 (수정된 호출 방식)
+        # 4. 날짜 클릭 시 처리 (주간 달력에서만 팝업 오픈)
     if state.get("dateClick"):
-        # split 하지 말고 원본 문자열을 그대로 넘깁니다! ㅋ
         raw_clicked_date = state["dateClick"]["date"]
-        add_res_modal(raw_clicked_date, df_m)
-    else:
-        st.info("현재 등록된 예약 내역이 없습니다. 날짜를 클릭하여 새 예약을 등록해 보세요!")
-        calendar(events=[], options={"headerToolbar": {"center": "title"}}, key="empty_cal")
         
+        # 'T'가 포함된 경우 = 주간 달력(시간축)을 클릭했을 때만 실행 ㅋ
+        if "T" in raw_clicked_date:
+            add_res_modal(raw_clicked_date, df_m)
+        else:
+            # 월간 달력 클릭 시에는 안내 메시지만 살짝 띄우거나 아무것도 안 함 ㅋ
+            st.toast("💡 예약 등록은 '주간' 탭에서 시간을 선택해 주세요!", icon="📅")
+            
 with tabs[1]:
     st.dataframe(df_r, use_container_width=True, hide_index=True)
 
