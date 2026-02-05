@@ -377,11 +377,11 @@ tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (00:00:00 필터 유지)
+# #4-2. [탭 1] 스케줄 달력 뷰 (팝업 무한 호출 방지)
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
     
-    # 팝업 상태 관리를 위한 세션 변수
+    # 세션 상태 변수 안전하게 초기화 ㅋ
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
 
@@ -399,27 +399,33 @@ with tabs[0]:
                 })
             except: continue
 
+    # 달력 위젯
     state = calendar(events=events, options={
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek"},
         "initialView": "dayGridMonth", "selectable": True, "locale": "ko"
-    }, key="cal_v_final_stable_0205")
+    }, key="cal_v_final_stable_0205_v2")
 
-    # 💡 대장님이 강조하신 00:00:00 필터 유지 로직 ㅋ
-    if state.get("dateClick"):
+    # 💡 [보완] 달력에서 '시간 클릭'이 아닌 다른 동작(넘기기 등)을 하면 스위치를 끕니다 ㅋ
+    if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
-        # 월간 클릭이 아닌 주간/일간 시간 클릭일 때만 작동! ㅋ
+        # 00:00:00 필터 유지 ㅋ
         if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
             if st.session_state.clicked_res_info != raw_date:
                 st.session_state.clicked_res_info = raw_date
                 st.session_state.show_res_modal = True
                 st.rerun()
         else:
+            # 시간을 누른 게 아니면(날짜만 눌렀거나 등) 스위치 OFF ㅋ
+            st.session_state.show_res_modal = False
             st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
+    
+    # 💡 [중요] 달력의 다른 버튼(이전/다음 등)을 눌렀을 때 팝업이 뜨지 않게 방어 ㅋ
+    elif state.get("callback") and state.get("callback") != "dateClick":
+        st.session_state.show_res_modal = False
 
-    # 💡 팝업 강제 유지 호출
+    # 💡 팝업 강제 유지 (스위치가 확실히 ON일 때만!)
     if st.session_state.show_res_modal and st.session_state.clicked_res_info:
         add_res_modal(st.session_state.clicked_res_info, df_m)
-        
 
 
 # #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 수정, 삭제)
