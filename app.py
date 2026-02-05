@@ -397,19 +397,19 @@ with tabs[1]:
 
 
 
-# #4-4. [탭 3] 회원 관리 (모바일 최적화 고정식 상세조회)
+# #4-4. [탭 3] 회원 관리 (인라인 상세조회 방식 - 팝업 안 씀!)
 with tabs[2]:
     st.subheader("👥 회원 관리")
     
-    # 세션 상태 초기화 (상세창 열림 여부) ㅋ
-    if "show_detail_view" not in st.session_state: st.session_state.show_detail_view = False
-    if "selected_m_data" not in st.session_state: st.session_state.selected_m_data = None
+    # 세션 상태 초기화 (상세창 열림 여부 관리) ㅋ
+    if "m_view_open" not in st.session_state: st.session_state.m_view_open = False
+    if "m_selected_data" not in st.session_state: st.session_state.m_selected_data = None
 
-    if st.button("➕ 새 회원 등록", use_container_width=True, key="m_add_btn_main"): 
-        add_member_modal()
+    if st.button("➕ 새 회원 등록", use_container_width=True, key="m_add_new_btn"): 
+        add_member_modal() # 등록은 팝업이어도 괜찮습니다 ㅋ
     st.divider()
     
-    search_m = st.text_input("👤 회원 검색 (성함 또는 연락처)", key="m_search_input_final")
+    search_m = st.text_input("👤 회원 검색", placeholder="이름 또는 연락처...", key="m_search_final_fixed")
     
     df_m = load_data("members")
     if not df_m.empty:
@@ -420,73 +420,73 @@ with tabs[2]:
         df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
         df_disp['생년월일'] = df_disp['생년월일'].apply(format_birth)
         
-        # 1. 회원 명단 테이블 ㅋ
+        # 1. 회원 명단 테이블
         sel = st.dataframe(
             df_disp, use_container_width=True, hide_index=True, 
-            on_select="rerun", selection_mode="single-row", key="m_table_fixed"
+            on_select="rerun", selection_mode="single-row", key="m_table_inline_fixed"
         )
 
-        # 2. 명단에서 선택 시 데이터 고정 ㅋ
+        # 2. 행 선택 시 세션에 데이터 고정 및 뷰어 오픈 ㅋ
         if sel.selection.rows:
-            st.session_state.selected_m_data = df_disp.iloc[sel.selection.rows[0]]
-            st.session_state.show_detail_view = True
+            st.session_state.m_selected_data = df_disp.iloc[sel.selection.rows[0]]
+            st.session_state.m_view_open = True
 
-        # 3. 💡 [핵심] 팝업이 아니라 '화면 하단 고정창'으로 정보 표시 ㅋ
-        # 이렇게 하면 모바일에서 상품을 눌러 리런되어도 절대 닫히지 않습니다!
-        if st.session_state.show_detail_view and st.session_state.selected_m_data is not None:
-            m = st.session_state.selected_m_data
+        # 3. 💡 [핵심] 팝업(dialog) 대신 화면 하단에 직접 정보 표시
+        if st.session_state.m_view_open and st.session_state.m_selected_data is not None:
+            m = st.session_state.m_selected_data
             st.markdown("---")
-            st.markdown(f"### 👑 {m['성함']} 회원님 상세 정보")
+            st.success(f"🔍 **{m['성함']}** 회원님 정보가 아래에 열렸습니다.")
             
-            # 조회/등록/수정 탭을 화면에 직접 그립니다 ㅋ
-            dv_tabs = st.tabs(["🔍 조회", "💰 매출등록", "✏️ 수정"])
+            # 여기서부터 상세 정보창 시작 ㅋ
+            m_tabs = st.tabs(["📋 상세정보", "💰 매출등록", "✏️ 수정"])
             
-            with dv_tabs[0]: # 상세조회
-                st.info(f"📍 No.{m['순번']} | 📞 {m['연락처']} | 🎂 {m['생년월일']}\n\n🏠 {m['주소']}\n\n👤 담당: {m['상담사']} | 📅 최초방문: {m['최초방문일']}")
-                st.write(f"📝 **비고:** {m['비고(특이사항)']}")
+            with m_tabs[0]: # 상세조회
+                st.write(f"**이름:** {m['성함']} | **연락처:** {m['연락처']}")
+                st.write(f"**생일:** {m['생년월일']} | **담당:** {m['상담사']}")
+                st.info(f"📝 **비고:** {m['비고(특이사항)'] if m['비고(특이사항)'] else '내용 없음'}")
                 
-                # 해당 회원의 매출 내역 필터링 ㅋ
+                # 매출 내역 표시 ㅋ
                 h_df = df_s[df_s['성함'] == m['성함']]
                 if not h_df.empty:
-                    st.write("#### 💰 최근 매출")
+                    st.write("---")
+                    st.write("**💰 최근 매출 내역**")
                     for i, r in h_df.iterrows():
                         c_msg, c_del = st.columns([8, 2])
-                        c_msg.write(f"📅 {r['날짜']} | {r['상품명']} | {r['수가']}원")
-                        if c_del.button("삭제", key=f"fixed_del_{i}"):
+                        c_msg.write(f"📅 {r['날짜']} | {r['상품명']} | {int(r['수가']):,}원")
+                        if c_del.button("삭제", key=f"inline_del_{m['성함']}_{i}"):
                             if manage_gsheet("schedules", action="delete_sales", key=m['성함'], extra={"date": r['날짜'], "item": r['상품명']}):
                                 st.cache_data.clear(); st.rerun()
 
-            with dv_tabs[1]: # 매출등록
-                s_date = st.date_input("결제 날짜", datetime.now(), key="fixed_s_date")
-                st.write("📦 **상품 선택**")
+            with m_tabs[1]: # 매출등록
+                s_date = st.date_input("결제 날짜", datetime.now(), key=f"inline_date_{m['성함']}")
+                st.write("**📦 상품 선택**")
                 p_cols = st.columns(3)
-                for i, k in enumerate(PRODUCT_DATA.keys()):
-                    if p_cols[i%3].button(f"{k}", key=f"fixed_p_{k}"):
-                        st.session_state.sel_items.append({"n": k, "p": PRODUCT_DATA[k]})
+                for i, (k, v) in enumerate(PRODUCT_DATA.items()):
+                    if p_cols[i%3].button(f"{k}", key=f"inline_pbtn_{m['성함']}_{i}"):
+                        st.session_state.sel_items.append({"n": k, "p": v})
                 
-                f_item = st.text_input("상품명", value=", ".join([x['n'] for x in st.session_state.sel_items]), key="fixed_f_item")
-                f_su = st.text_input("수가", value=str(sum([x['p'] for x in st.session_state.sel_items])), key="fixed_f_su")
-                
-                if st.button("💰 매출 저장", key="fixed_save_btn", use_container_width=True):
-                    if manage_gsheet("schedules", [m['성함'], s_date.strftime('%Y-%m-%d'), f_item, m['상담사'], int(f_su), 0, 0, ""], action="add"):
-                        st.session_state.sel_items = []; st.cache_data.clear(); st.rerun()
+                with st.form(key=f"inline_sale_form_{m['성함']}"):
+                    f_item = st.text_input("선택된 상품", value=", ".join([x['n'] for x in st.session_state.sel_items]))
+                    f_su = st.text_input("최종 금액", value=str(sum([x['p'] for x in st.session_state.sel_items])))
+                    if st.form_submit_button("💰 매출 저장"):
+                        if manage_gsheet("schedules", [m['성함'], s_date.strftime('%Y-%m-%d'), f_item, m['상담사'], int(f_su), 0, 0, ""], action="add"):
+                            st.session_state.sel_items = []; st.cache_data.clear(); st.rerun()
 
-            with dv_tabs[2]: # 수정
-                with st.form("fixed_edit_form"):
+            with m_tabs[2]: # 수정
+                with st.form(key=f"inline_edit_form_{m['성함']}"):
                     e_p = st.text_input("연락처", value=m['연락처'])
-                    e_a = st.text_input("주소", value=m['주소'])
                     e_m = st.text_area("비고", value=m['비고(특이사항)'])
-                    if st.form_submit_button("✅ 정보 수정 완료"):
-                        up_row = [m['순번'], m['성함'], e_p, m['생년월일'], m['성별'], e_a, m['최초방문일'], m['상담사'], e_m]
+                    if st.form_submit_button("✅ 정보 수정"):
+                        up_row = [m['순번'], m['성함'], e_p, m['생년월일'], m['성별'], m['주소'], m['최초방문일'], m['상담사'], e_m]
                         if manage_gsheet("members", up_row, action="update", key=m['성함']):
                             st.cache_data.clear(); st.rerun()
 
-            if st.button("❌ 상세창 닫기", use_container_width=True):
-                st.session_state.show_detail_view = False
+            if st.button("❌ 상세창 닫기", use_container_width=True, key="inline_close_btn"):
+                st.session_state.m_view_open = False
                 st.rerun()
                 
     else: 
-        st.warning("데이터 없음") # OK
+        st.warning("회원 데이터가 없습니다.")
 
         
 
