@@ -378,6 +378,8 @@ tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 # #4-2. [탭 1] 스케줄 달력 뷰
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
+    if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
+    if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
     events = []
     if not df_r.empty:
         for _, r in df_r.iterrows():
@@ -407,9 +409,16 @@ with tabs[0]:
 
     if state.get("dateClick"):
         raw_date = str(state["dateClick"]["date"])
-        if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00": add_res_modal(raw_date, df_m)
-        else: st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
-
+        
+        # 💡 대장님이 말씀하신 '중요한 조건'을 그대로 유지합니다! ㅋ
+        if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
+            # 👇 원래 add_res_modal(...) 이 있던 자리에 아래 세 줄을 넣으세요!
+            st.session_state.clicked_res_info = raw_date
+            st.session_state.show_res_modal = True
+            st.rerun()
+        else: 
+            st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
+            
 
 
 # #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 수정, 삭제)
