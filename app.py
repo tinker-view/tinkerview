@@ -515,8 +515,6 @@ with tabs[2]:
     else: 
         st.warning("데이터가 없습니다. 시트를 확인해주세요.")
 
-
-
 # #4-5. [탭 4] 매출 통계 및 로그아웃
 with tabs[3]:
     if not df_s.empty:
