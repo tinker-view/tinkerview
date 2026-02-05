@@ -467,123 +467,29 @@ with tabs[1]:
 
 
 
-# #4-4. [탭 3] 회원 관리 (키패드 활성화/화면 리사이즈 대응 고정식)
-
-
+# #4-4. [탭 3] 회원 관리 (검색, 상세정보 팝업 연결)
 with tabs[2]:
     st.subheader("👥 회원 관리")
-
-
-    # 💡 팝업 상태를 유지하기 위한 세션 스위치
-    if "m_detail_open" not in st.session_state: st.session_state.m_detail_open = False
-    if "m_detail_data" not in st.session_state: st.session_state.m_detail_data = None
-
-
-    if st.button("➕ 새 회원 등록", use_container_width=True, key="m_add_btn_final"): 
-        add_member_modal() 
+    if st.button("➕ 새 회원 등록", use_container_width=True): add_member_modal()
     st.divider()
-
-
-    # 검색창
-    search_m = st.text_input("👤 회원 검색", placeholder="이름 또는 연락처 입력...", key="m_search_input_final")
-
-
+    search_m = st.text_input("👤 회원 검색 (성함 또는 연락처)", placeholder="검색어 입력...", key="m_search_main")
+    
     df_m = load_data("members")
     if not df_m.empty:
         df_disp = df_m.copy()
         if search_m:
             df_disp = df_disp[df_disp['성함'].str.contains(search_m, na=False) | df_disp['연락처'].str.contains(search_m, na=False)]
-
-
-        # 포맷팅
         df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
         df_disp['생년월일'] = df_disp['생년월일'].apply(format_birth)
-
-
-        # 1. 메인 명단 테이블 (선택 시 즉시 세션 고정)
+        
         sel = st.dataframe(
-            df_disp, use_container_width=True, hide_index=True, 
-            on_select="rerun", selection_mode="single-row", key="m_table_final_resilient"
+            df_disp, use_container_width=True, hide_index=True, on_select="rerun",
+            selection_mode="single-row", key="member_table_v5"
         )
-
-
-        # 행 선택 시 데이터 저장 및 뷰어 활성화 ㅋ
         if sel.selection.rows:
-            st.session_state.m_detail_data = df_disp.iloc[sel.selection.rows[0]]
-            st.session_state.m_detail_open = True
-
-
-        # 2. 💡 [핵심] 키패드가 닫혀도 사라지지 않는 인라인 상세창
-        if st.session_state.m_detail_open and st.session_state.m_detail_data is not None:
-            m = st.session_state.m_detail_data
-            
-            st.markdown("---")
-            st.success(f"🔍 **{m['성함']}** 님 정보")
-
-
-            # 탭 구성 (조회, 매출, 수정)
-            m_tabs = st.tabs(["📋 상세정보", "💰 매출등록", "✏️ 수정"])
-
-
-            with m_tabs[0]: # 상세조회 ㅋ
-                st.write(f"**순번:** {m['순번']} | **성별:** {m['성별']}")
-                st.write(f"**연락처:** {m['연락처']} | **생일:** {m['생년월일']}")
-                st.write(f"**주소:** {m['주소'] if m['주소'] else '-'}")
-                st.info(f"📝 **비고:** {m['비고(특이사항)']}")
-
-
-                # 매출 내역
-                h_df = df_s[df_s['성함'] == m['성함']]
-                if not h_df.empty:
-                    st.write("**💰 최근 매출**")
-                    for i, r in h_df.iterrows():
-                        c_msg, c_del = st.columns([8, 2])
-                        c_msg.write(f"📅 {r['날짜']} | {r['상품명']} | {int(r['수가']):,}원")
-                        if c_del.button("삭제", key=f"in_del_{m['성함']}_{i}"):
-                            if manage_gsheet("schedules", action="delete_sales", key=m['성함'], extra={"date": r['날짜'], "item": r['상품명']}):
-                                st.cache_data.clear(); st.rerun()
-
-
-            with m_tabs[1]: # 매출등록 ㅋ
-                # 팝업이 아니므로 키패드가 내려가도 이 입력창들은 그대로 유지됩니다 ㅋ
-                s_date = st.date_input("결제일", datetime.now(), key=f"in_sdate_{m['성함']}")
-                
-                # 상품 선택 버튼
-                st.write("**📦 상품**")
-                p_cols = st.columns(3)
-                for i, (k, v) in enumerate(PRODUCT_DATA.items()):
-                    if p_cols[i%3].button(f"{k}", key=f"in_pbtn_{m['성함']}_{i}"):
-                        st.session_state.sel_items.append({"n": k, "p": v})
-                        st.rerun()
-
-
-                with st.form(key=f"in_sale_form_{m['성함']}"):
-                    f_item = st.text_input("상품명", value=", ".join([x['n'] for x in st.session_state.sel_items]))
-                    f_su = st.text_input("금액", value=str(sum([x['p'] for x in st.session_state.sel_items])))
-                    if st.form_submit_button("💰 매출 저장"):
-                        if manage_gsheet("schedules", [m['성함'], s_date.strftime('%Y-%m-%d'), f_item, m['상담사'], int(f_su), 0, 0, ""], action="add"):
-                            st.session_state.sel_items = []; st.cache_data.clear(); st.rerun()
-
-
-            with m_tabs[2]: # 정보수정 ㅋ
-                with st.form(key=f"in_edit_form_{m['성함']}"):
-                    e_p = st.text_input("연락처", value=m['연락처'])
-                    e_a = st.text_input("주소", value=m['주소'])
-                    e_m = st.text_area("비고", value=m['비고(특이사항)'])
-                    if st.form_submit_button("✅ 수정 완료"):
-                        up_row = [m['순번'], m['성함'], e_p, m['생년월일'], m['성별'], e_a, m['최초방문일'], m['상담사'], e_m]
-                        if manage_gsheet("members", up_row, action="update", key=m['성함']):
-                            st.cache_data.clear(); st.rerun()
-
-
-            # 닫기 버튼을 눌러야만 상세창이 사라집니다 ㅋ
-            if st.button("❌ 상세창 닫기", use_container_width=True, key="in_close_btn"):
-                st.session_state.m_detail_open = False
-                st.rerun()
-
-
-    else:
-        st.warning("데이터가 없습니다.")
+            m_info = df_disp.iloc[sel.selection.rows[0]]
+            show_detail(m_info, df_s[df_s['성함'] == m_info['성함']])
+    else: st.warning("데이터 없음")
 
         
 
