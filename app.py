@@ -370,16 +370,20 @@ with tabs[0]:
 
 
 
-# #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 삭제)
+# #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 수정, 삭제)
 with tabs[1]:
     st.subheader("📋 예약 내역 관리")
 
+
     if not df_r.empty:
+        # --- 🔍 필터 영역 ---
         col1, col2, col3 = st.columns(3)
         date_range = col1.date_input("날짜 범위", [datetime.now().date(), datetime.now().date() + timedelta(days=7)], key="mgr_d_clean")
         search_term = col2.text_input("검색 (성함/상품명)", key="mgr_s_clean")
         sort_order = col3.selectbox("정렬", ["최신 날짜순", "오래된 날짜순", "시간순"], key="mgr_o_clean")
 
+
+        # --- ⚙️ 필터링 로직 ---
         f_df = df_r.copy()
         if len(date_range) == 2:
             f_df['날짜'] = pd.to_datetime(f_df['날짜']).dt.date
@@ -390,21 +394,39 @@ with tabs[1]:
         asc = [False, False] if sort_order == "최신 날짜순" else [True, True]
         f_df = f_df.sort_values(by=['날짜', '시간'] if sort_order != "시간순" else ['시간', '날짜'], ascending=asc)
 
+
+        # --- 📊 예약 데이터 테이블 ---
         sel_res = st.dataframe(
             f_df, use_container_width=True, hide_index=True, on_select="rerun",
             selection_mode="single-row", key="res_table_clean"
         )
 
+
+        # --- ⚙️ 수정/삭제 액션 영역 ---
         if sel_res.selection.rows:
             idx = sel_res.selection.rows[0]
             row = f_df.iloc[idx]
-            st.warning(f"⚠️ **{row['성함']}** 님의 예약을 삭제하시겠습니까?")
-            c1, c2 = st.columns([1, 4])
-            if c1.button("🗑️ 즉시 삭제", type="primary", use_container_width=True):
+            
+            st.markdown(f"**📍 선택된 예약:** `{row['날짜']}` `{row['시간']}` | **{row['성함']}** 님 ({row['상품명']})")
+            
+            # 버튼 레이아웃: 수정과 삭제를 나란히 ㅋ
+            btn_col1, btn_col2, btn_spacer = st.columns([1, 1, 3])
+            
+            # 1. 수정 버튼
+            if btn_col1.button("✏️ 예약 수정", use_container_width=True):
+                # 이전에 만든 #3-5 [팝업] 예약 정보 수정 폼 호출 ㅋ
+                edit_res_modal(row) 
+                
+            # 2. 삭제 버튼
+            if btn_col2.button("🗑️ 즉시 삭제", type="primary", use_container_width=True):
+                # GAS에 삭제 요청 (성함, 날짜, 시간 조합)
                 if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": row['날짜'], "time": row['시간']}):
-                    st.toast("예약이 삭제되었습니다.", icon="🗑️")
-                    st.cache_data.clear(); st.rerun()
-            if c2.button("❌ 취소", use_container_width=True): st.rerun()
+                    st.toast(f"{row['성함']} 님의 예약이 삭제되었습니다.", icon="🗑️")
+                    st.cache_data.clear()
+                    st.rerun()
+                else:
+                    st.error("삭제에 실패했습니다. 관리자에게 문의하세요.")
+
     else:
         st.info("등록된 예약 내역이 없습니다.")
 
