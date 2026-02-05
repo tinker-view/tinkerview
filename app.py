@@ -26,7 +26,7 @@ PRODUCT_DATA = {"HP": 500000, "S1": 50000, "S2": 100000, "S3": 1000000, "S4": 99
 
 
 
-# #1-3. 관리자 인증 시스템
+# #1-3. 관리자 인증 시스템 (보안)
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = True if st.query_params.get("auth") == "true" else False
 
@@ -68,7 +68,7 @@ def load_data(sheet_name):
 
 
 
-# #2-2. 구글 시트 데이터 조작 (C.U.D)
+# #2-2. 구글 시트 데이터 조작 (C.U.D - 추가, 수정, 삭제)
 def manage_gsheet(sheet, row=None, action="add", key=None, extra=None):
     try:
         f_row = []
@@ -77,6 +77,7 @@ def manage_gsheet(sheet, row=None, action="add", key=None, extra=None):
             if not val:
                 f_row.append("")
                 continue
+
             if val.isdigit() and val.startswith("0"):
                 f_row.append(f"'{val}")
             elif re.match(r'^[0-9.-]+$', val):
@@ -97,180 +98,407 @@ def manage_gsheet(sheet, row=None, action="add", key=None, extra=None):
 # ==========================================
 
 
-# #3-1. 포맷팅 유틸리티
+# #3-1. 텍스트 포맷팅 유틸리티 (연락처, 날짜 등)
 def format_phone(p):
     c = re.sub(r'\D', '', str(p)); return f"{c[:3]}-{c[3:7]}-{c[7:]}" if len(c) == 11 else c
 
 def format_birth(b):
     c = re.sub(r'\D', '', str(b))
-    if len(c) == 8: return f"{c[:4]}.{c[4:6]}.{c[6:]}"
+    if len(c) == 8:
+        return f"{c[:4]}.{c[4:6]}.{c[6:]}"
     return c
 
 
 
-# #3-2. [팝업] 신규 회원 등록
+# #3-2. [팝업] 신규 회원 등록 폼
 @st.dialog("👤 새 회원 등록")
 def add_member_modal():
     with st.form("add_member_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         new_name = col1.text_input("성함 (필수)")
-        new_phone = col2.text_input("연락처")
+        new_phone = col2.text_input("연락처 (예: 01012345678)")
+        
         col3, col4 = st.columns(2)
-        new_birth = col3.text_input("생년월일 (8자리)")
+        new_birth = col3.text_input("생년월일 (예: 19900101)")
         new_gender = col4.selectbox("성별", ["남", "여"])
+        
         new_addr = st.text_input("주소")
         new_coun = st.text_input("담당 상담사")
-        new_memo = st.text_area("비고")
+        new_memo = st.text_area("비고(특이사항)")
+        
         if st.form_submit_button("✅ 회원 등록 완료"):
-            if not new_name: st.error("성함을 입력해주세요!")
+            if not new_name:
+                st.error("성함을 입력해주세요!")
             else:
                 new_row = ["", new_name, new_phone, new_birth, new_gender, new_addr, datetime.now().strftime("%Y-%m-%d"), new_coun, new_memo]
                 if manage_gsheet("members", new_row, action="add"):
-                    st.cache_data.clear(); st.rerun()
+                    st.success(f"{new_name} 님이 등록되었습니다!")
+                    st.cache_data.clear()
+                    st.rerun()
 
 
 
-# #3-3. [팝업] 신규 예약 등록 (검색 보완형)
+# #3-3. [팝업] 신규 예약 등록 폼 (검색-입력 동기화 보완)
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
+    # 시간 시차 보정 ㅋ
     try:
         dt_parts = clicked_date.replace("Z", "").split("T")
         date_str, time_str = dt_parts[0], dt_parts[1][:5]
         base_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
         kor_dt = base_dt + timedelta(hours=9)
-        f_date, f_time = kor_dt.date(), kor_dt.time()
+        fixed_date, fixed_time = kor_dt.date(), kor_dt.time()
     except:
-        f_date, f_time = datetime.now().date(), datetime.now().time()
+        fixed_date, fixed_time = datetime.now().date(), datetime.now().time()
 
-    if "res_name_input" not in st.session_state: st.session_state.res_name_input = ""
+    # 세션 초기화 및 관리 ㅋ
+    if "res_name_input" not in st.session_state:
+        st.session_state.res_name_input = ""
 
-    search_q = st.text_input("🔍 회원 검색", placeholder="이름 입력...")
+    st.write(f"📅 선택 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
+    st.divider()
+
+    # 1. 검색 영역 (폼 외부) ㅋ
+    search_q = st.text_input("🔍 회원 검색", placeholder="이름 입력 시 목록이 나타납니다.")
+    
     if search_q:
         filtered = m_list[m_list['성함'].str.contains(search_q, na=False)]['성함'].tolist()
         if filtered:
-            sel_hint = st.selectbox("검색 결과 선택", ["선택하세요"] + filtered)
-            if sel_hint != "선택하세요": st.session_state.res_name_input = sel_hint
+            # 검색 결과 선택 시 세션 상태에 즉시 반영 ㅋ
+            sel_hint = st.selectbox("검색 결과 선택 (선택 시 아래 자동 입력)", ["선택하세요"] + filtered)
+            if sel_hint != "선택하세요":
+                st.session_state.res_name_input = sel_hint
 
-    with st.form("res_real_form"):
-        res_name = st.text_input("👤 예약자 성함", value=st.session_state.res_name_input)
-        res_date = st.date_input("예약 날짜", value=f_date)
+    # 2. 실제 저장 폼 영역
+    with st.form("res_real_form_v2", clear_on_submit=True):
+        # 검색 결과가 자동으로 이 칸에 들어갑니다 ㅋ
+        res_name = st.text_input("👤 예약자 성함 (필수)", value=st.session_state.res_name_input)
+        
+        # 상담사 자동 매칭
+        default_counselor = ""
+        if res_name:
+            matched = m_list[m_list['성함'] == res_name]
+            if not matched.empty:
+                default_counselor = matched.iloc[0]['상담사']
+
+        res_date = st.date_input("예약 날짜", value=fixed_date)
         time_slots = [f"{h:02d}:{m:02d}" for h in range(10, 19) for m in (0, 30)][:-1]
-        t_idx = time_slots.index(f_time.strftime("%H:%M")) if f_time.strftime("%H:%M") in time_slots else 0
-        res_time = st.selectbox("시간 선택", options=time_slots, index=t_idx)
+        click_time_str = fixed_time.strftime("%H:%M")
+        default_idx = time_slots.index(click_time_str) if click_time_str in time_slots else 0
+        res_time_str = st.selectbox("시간 선택", options=time_slots, index=default_idx)
+
         item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
+        coun = st.text_input("상담사", value=default_counselor)
         etc = st.text_area("특이사항")
+        
         if st.form_submit_button("✅ 예약 저장"):
-            if not res_name: st.error("성함을 입력해 주세요!")
+            if not res_name:
+                st.error("성함을 입력해 주세요! (검색 후 선택하거나 직접 입력)")
             else:
-                if manage_gsheet("reservations", [res_name, res_date.strftime("%Y-%m-%d"), item, "", res_time, etc]):
-                    st.session_state.res_name_input = ""; st.cache_data.clear(); st.rerun()
+                if manage_gsheet("reservations", [res_name, res_date.strftime("%Y-%m-%d"), item, coun, res_time_str, etc]):
+                    # 성공 시 세션 비우기 ㅋ
+                    st.session_state.res_name_input = ""
+                    st.cache_data.clear()
+                    st.rerun()
 
 
 
-# #3-4. [팝업] 회원 상세 정보 및 매출 관리
+# #3-4. [팝업] 회원 상세 정보 및 매출/수정 통합 관리
 @st.dialog("👤 회원 정보 및 매출 관리")
 def show_detail(m_info, h_df):
+    if "pop_id" not in st.session_state or st.session_state.pop_id != m_info['성함']:
+        st.session_state.sel_items = []
+        st.session_state.pop_id = m_info['성함']
+
     t_v, t_s, t_e = st.tabs(["🔍 상세조회", "💰 매출등록", "✏️ 정보수정"])
+    
     with t_v:
-        st.markdown(f"### 👑 {m_info['성함']} 회원님")
-        st.write(f"📞 {format_phone(m_info['연락처'])} | 🎂 {format_birth(m_info['생년월일'])}")
-        st.write(f"🏠 {m_info['주소']}")
+        st.markdown(f"""
+            <div style="background-color:#1E90FF; padding:12px; border-radius:8px; margin-bottom:20px; text-align:center;">
+                <h3 style="margin:0; color:white;">👑 {m_info['성함']} <span style="font-size:14px; opacity:0.8;">회원님 상세 정보</span></h3>
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown(f"""
+            <div style="background-color:#ffffff; padding:20px; border-radius:10px; border:1px solid #e1e4e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">No.</span>
+                    <b style="font-size:18px; color:#333;">{m_info['순번']}번</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">성함</span>
+                    <b style="font-size:18px; color:#333;">{m_info['성함']}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">연락처</span>
+                    <b style="font-size:18px; color:#333;">{format_phone(m_info['연락처'])}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">생년월일</span>
+                    <b style="font-size:18px; color:#333;">{format_birth(m_info['생년월일'])}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">주소</span>
+                    <b style="font-size:16px; color:#333;">{m_info['주소'] if m_info['주소'] else '-'}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">담당 상담사</span>
+                    <b style="font-size:16px; color:#333;">{m_info['상담사']}</b>
+                </div>
+                <div style="margin-bottom:5px;">
+                    <span style="color:#888; font-size:13px; display:block;">최초방문일</span>
+                    <b style="font-size:16px; color:#333;">{m_info['최초방문일']}</b>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("") 
+        st.markdown(f"📝 **비고(특이사항)**")
+        st.info(m_info['비고(특이사항)'] if m_info['비고(특이사항)'] else "내용 없음")
+        
         st.divider()
         st.write("#### 💰 최근 매출 내역")
         if not h_df.empty:
             for i, r in h_df.iterrows():
                 ci, cd = st.columns([8, 2])
                 ci.write(f"📅 {r['날짜']} | 📦 {r['상품명']} | 💰 **{r['수가']}원**")
-                if cd.button("삭제", key=f"d_sale_{i}"):
+                if cd.button("삭제", key=f"d_{i}"):
                     if manage_gsheet("schedules", action="delete_sales", key=m_info['성함'], extra={"date": r['날짜'], "item": r['상품명']}):
                         st.cache_data.clear(); st.rerun()
+        else: st.write("내역 없음")
+
     with t_s:
         s_date = st.date_input("결제 날짜", datetime.now())
+        c_head, c_reset = st.columns([7, 3])
+        c_head.write("**상품 선택 (자동 합산)**")
+        if c_reset.button("🔄 초기화", key="reset_items", use_container_width=True):
+            st.session_state.sel_items = []; st.rerun()
+            
+        cols = st.columns(3)
+        for k in PRODUCT_DATA.keys():
+            if cols[list(PRODUCT_DATA.keys()).index(k) % 3].button(f"{k}\n({PRODUCT_DATA[k]:,}원)", key=f"pbtn_{k}"):
+                st.session_state.sel_items.append({"n": k, "p": PRODUCT_DATA[k]})
+        
+        calc_total = sum([x['p'] for x in st.session_state.sel_items])
         with st.form("sale_f"):
-            f_item = st.text_input("상품명")
-            v_su = st.text_input("수가", value="0")
+            f_item = st.text_input("상품명", value=", ".join([x['n'] for x in st.session_state.sel_items]))
+            f_coun = st.text_input("상담사", value=m_info['상담사'])
+            c1, c2, c3 = st.columns(3)
+            v_su = c1.text_input("수가", value=str(calc_total))
+            v_te = c2.text_input("특가", value="0")
+            v_ju = c3.text_input("정산", value="0")
+            f_memo = st.text_area("매출 비고", placeholder="특이사항 입력", height=100)
             if st.form_submit_button("💰 매출 저장"):
-                if manage_gsheet("schedules", [m_info['성함'], s_date.strftime('%Y-%m-%d'), f_item, m_info['상담사'], v_su, 0, 0, ""]):
-                    st.cache_data.clear(); st.rerun()
+                vs, vt, vj = int(re.sub(r'\D', '', v_su or "0")), int(re.sub(r'\D', '', v_te or "0")), int(re.sub(r'\D', '', v_ju or "0"))
+                if manage_gsheet("schedules", [m_info['성함'], s_date.strftime('%Y-%m-%d'), f_item, f_coun, vs, vt, vj, f_memo]):
+                    st.session_state.sel_items = []; st.cache_data.clear(); st.rerun()
+
     with t_e:
         with st.form("ef"):
-            e_p = st.text_input("연락처", value=m_info['연락처'])
-            e_a = st.text_input("주소", value=m_info['주소'])
+            st.write("#### ⚙️ 회원 정보 수정")
+            c1, c2, c3 = st.columns([1, 2, 2])
+            e_no = c1.text_input("순번", value=str(m_info['순번']))
+            e_n = c2.text_input("성함", value=m_info['성함'])
+            e_v = c3.text_input("최초방문일", value=m_info['최초방문일'])
+            
+            c4, c5 = st.columns(2)
+            e_p = re.sub(r'\D', '', c4.text_input("연락처", value=m_info['연락처']))
+            e_b = re.sub(r'\D', '', c5.text_input("생년월일", value=m_info['생년월일']))
+            
+            c6, c7 = st.columns([1, 3])
+            g_opt = ["남자", "여자"]
+            curr_g = "남자" if "남" in str(m_info['성별']) else "여자"
+            e_g = c6.selectbox("성별", options=g_opt, index=g_opt.index(curr_g))
+            e_a = c7.text_input("주소", value=m_info['주소'])
+            
+            e_c = st.text_input("상담사", value=m_info['상담사'])
             e_m = st.text_area("비고", value=m_info['비고(특이사항)'])
+            
             if st.form_submit_button("✅ 정보 수정 완료"):
-                up_row = [m_info['순번'], m_info['성함'], e_p, m_info['생년월일'], m_info['성별'], e_a, m_info['최초방문일'], m_info['상담사'], e_m]
+                clean_v = re.sub(r'[^0-9.-]', '', e_v)
+                up_row = [e_no.strip(), e_n, e_p, e_b, e_g, e_a, clean_v, e_c, e_m]
                 if manage_gsheet("members", up_row, action="update", key=m_info['성함']):
                     st.cache_data.clear(); st.rerun()
 
+# #3-5. [팝업] 예약 정보 수정 폼
+@st.dialog("✏️ 예약 수정")
+def edit_res_modal(res_info):
+    with st.form("edit_res_form"):
+        st.write(f"### {res_info['성함']} 님 예약 수정")
+        new_date = st.date_input("날짜", value=pd.to_datetime(res_info['날짜']).date())
+        
+        time_slots = [f"{h:02d}:{m:02d}" for h in range(10, 19) for m in (0, 30)][:-1]
+        curr_time = str(res_info['시간']).strip()
+        default_idx = time_slots.index(curr_time) if curr_time in time_slots else 0
+        new_time = st.selectbox("시간", options=time_slots, index=default_idx)
+        
+        new_item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"], 
+                               index=["상담", "HP", "S1", "S2", "S3", "S4", "기타"].index(res_info['상품명']))
+        new_etc = st.text_area("특이사항", value=res_info['특이사항'])
+        
+        if st.form_submit_button("✅ 수정 완료"):
+            # 수정을 위해 'update_res' 액션을 GAS에 보내도록 구성 (GAS 코드 수정 필요할 수 있음)
+            if manage_gsheet("reservations", [res_info['성함'], new_date.strftime("%Y-%m-%d"), new_item, res_info['상담사'], new_time, new_etc], 
+                            action="update_res", key=res_info['성함'], 
+                            extra={"old_date": res_info['날짜'], "old_time": res_info['시간']}):
+                st.success("수정되었습니다!")
+                st.cache_data.clear()
+                st.rerun()
+
 
 
 # ==========================================
-# #4. 메인 탭 UI 영역
+# #4. 메인 탭 UI 및 대시보드 영역
 # ==========================================
 
 
-# #4-1. 데이터 로드 및 스타일
+# #4-1. 데이터 초기 로드 및 공통 스타일 적용
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
-st.markdown("<div style='font-size:26px; font-weight:800; color:#1E3A8A;'>✨ K-View</div>", unsafe_allow_html=True)
+
+st.markdown("""
+    <style>
+        .main-title { font-size: 26px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -20px; margin-bottom: 15px; display: flex; align-items: center; }
+    </style>
+    <div class="main-title">✨ K-View</div>
+""", unsafe_allow_html=True)
+
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
 
-# #4-2. [탭 1] 스케줄 달력
+# #4-2. [탭 1] 스케줄 달력 뷰
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
     events = []
     if not df_r.empty:
         for _, r in df_r.iterrows():
             try:
+                event_color = "#3D5AFE"
+                if "상담" in str(r['상품명']): event_color = "#FF9100"
+                elif "HP" in str(r['상품명']): event_color = "#00C853"
+                elif "S" in str(r['상품명']): event_color = "#D500F9"
+                
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
                 hh, mm = (res_time.split(":") + ["00"])[:2]
+                start_iso = f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00"
+                
                 events.append({
-                    "title": f"{r['성함']} ({r['상품명']})", "start": f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00",
-                    "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"
+                    "title": f"{r['성함']} ({r['상품명']})", "start": start_iso, "allDay": False,
+                    "backgroundColor": event_color, "borderColor": event_color,
+                    "extendedProps": {"memo": r.get('특이사항', '')}
                 })
             except: continue
-    state = calendar(events=events, options={"initialView": "dayGridMonth", "selectable": True, "locale": "ko"}, key="calendar_v10")
+
+    state = calendar(events=events, options={
+        "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek"},
+        "initialView": "dayGridMonth", "selectable": True, "locale": "ko",
+        "slotMinTime": "10:00:00", "slotMaxTime": "18:00:00", "allDaySlot": False,
+    }, key="calendar_v13_final")
+
     if state.get("dateClick"):
         raw_date = str(state["dateClick"]["date"])
-        if "T" in raw_date: add_res_modal(raw_date, df_m)
+        if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00": add_res_modal(raw_date, df_m)
+        else: st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
 
 
 
-# #4-3. [탭 2] 예약 내역 관리
+# #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 수정, 삭제)
 with tabs[1]:
     st.subheader("📋 예약 내역 관리")
+
+
     if not df_r.empty:
+        # --- 🔍 필터 영역 ---
+        col1, col2, col3 = st.columns(3)
+        date_range = col1.date_input("날짜 범위", [datetime.now().date(), datetime.now().date() + timedelta(days=7)], key="mgr_d_clean")
+        search_term = col2.text_input("검색 (성함/상품명)", key="mgr_s_clean")
+        sort_order = col3.selectbox("정렬", ["최신 날짜순", "오래된 날짜순", "시간순"], key="mgr_o_clean")
+
+
+        # --- ⚙️ 필터링 로직 ---
         f_df = df_r.copy()
-        sel_res = st.dataframe(f_df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", key="res_tab")
+        if len(date_range) == 2:
+            f_df['날짜'] = pd.to_datetime(f_df['날짜']).dt.date
+            f_df = f_df[(f_df['날짜'] >= date_range[0]) & (f_df['날짜'] <= date_range[1])]
+        if search_term:
+            f_df = f_df[f_df['성함'].str.contains(search_term, na=False) | f_df['상품명'].str.contains(search_term, na=False)]
+        
+        asc = [False, False] if sort_order == "최신 날짜순" else [True, True]
+        f_df = f_df.sort_values(by=['날짜', '시간'] if sort_order != "시간순" else ['시간', '날짜'], ascending=asc)
+
+
+        # --- 📊 예약 데이터 테이블 ---
+        sel_res = st.dataframe(
+            f_df, use_container_width=True, hide_index=True, on_select="rerun",
+            selection_mode="single-row", key="res_table_clean"
+        )
+
+
+        # --- ⚙️ 수정/삭제 액션 영역 ---
         if sel_res.selection.rows:
-            row = f_df.iloc[sel_res.selection.rows[0]]
-            st.warning(f"⚠️ {row['성함']} 님의 예약을 삭제하시겠습니까?")
-            if st.button("🗑️ 즉시 삭제", type="primary"):
+            idx = sel_res.selection.rows[0]
+            row = f_df.iloc[idx]
+            
+            st.markdown(f"**📍 선택된 예약:** `{row['날짜']}` `{row['시간']}` | **{row['성함']}** 님 ({row['상품명']})")
+            
+            # 버튼 레이아웃: 수정과 삭제를 나란히 ㅋ
+            btn_col1, btn_col2, btn_spacer = st.columns([1, 1, 3])
+            
+            # 1. 수정 버튼
+            if btn_col1.button("✏️ 예약 수정", use_container_width=True):
+                # 이전에 만든 #3-5 [팝업] 예약 정보 수정 폼 호출 ㅋ
+                edit_res_modal(row) 
+                
+            # 2. 삭제 버튼
+            if btn_col2.button("🗑️ 즉시 삭제", type="primary", use_container_width=True):
+                # GAS에 삭제 요청 (성함, 날짜, 시간 조합)
                 if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": row['날짜'], "time": row['시간']}):
-                    st.cache_data.clear(); st.rerun()
-    else: st.info("내역 없음")
+                    st.toast(f"{row['성함']} 님의 예약이 삭제되었습니다.", icon="🗑️")
+                    st.cache_data.clear()
+                    st.rerun()
+                else:
+                    st.error("삭제에 실패했습니다. 관리자에게 문의하세요.")
+
+    else:
+        st.info("등록된 예약 내역이 없습니다.")
 
 
 
-# #4-4. [탭 3] 회원 관리
+# #4-4. [탭 3] 회원 관리 (검색, 상세정보 팝업 연결)
 with tabs[2]:
     st.subheader("👥 회원 관리")
     if st.button("➕ 새 회원 등록", use_container_width=True): add_member_modal()
-    search_m = st.text_input("👤 회원 검색", key="m_search_main")
+    st.divider()
+    search_m = st.text_input("👤 회원 검색 (성함 또는 연락처)", placeholder="검색어 입력...", key="m_search_main")
+    
+    df_m = load_data("members")
     if not df_m.empty:
         df_disp = df_m.copy()
-        if search_m: df_disp = df_disp[df_disp['성함'].str.contains(search_m, na=False) | df_disp['연락처'].str.contains(search_m, na=False)]
-        sel = st.dataframe(df_disp, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", key="mem_tab")
+        if search_m:
+            df_disp = df_disp[df_disp['성함'].str.contains(search_m, na=False) | df_disp['연락처'].str.contains(search_m, na=False)]
+        df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
+        df_disp['생년월일'] = df_disp['생년월일'].apply(format_birth)
+        
+        sel = st.dataframe(
+            df_disp, use_container_width=True, hide_index=True, on_select="rerun",
+            selection_mode="single-row", key="member_table_v5"
+        )
         if sel.selection.rows:
             m_info = df_disp.iloc[sel.selection.rows[0]]
             show_detail(m_info, df_s[df_s['성함'] == m_info['성함']])
+    else: st.warning("데이터 없음")
 
 
 
-# #4-5. [탭 4] 매출 및 로그아웃
+# #4-5. [탭 4] 매출 통계 및 로그아웃
 with tabs[3]:
     if not df_s.empty:
+        calc_df = df_s.copy()
+        for c in ['수가', '특가', '정산']: 
+            calc_df[c] = pd.to_numeric(calc_df[c].apply(lambda x: str(x).replace(',', '')), errors='coerce').fillna(0)
         st.dataframe(df_s, use_container_width=True, hide_index=True)
-if st.sidebar.button("로그아웃"): st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
+        st.metric("총 정산 합계", f"{calc_df['정산'].sum():,.0f}원")
+
+if st.sidebar.button("로그아웃"): 
+    st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
