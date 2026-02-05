@@ -486,7 +486,7 @@ with tabs[2]:
                 st.rerun()
                 
     else: 
-        st.warning("데이터 없음")
+        st.warning("데이터 없음") # OK
 
         
 
