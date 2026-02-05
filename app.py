@@ -138,10 +138,16 @@ def add_member_modal():
 
 
 
-# #3-3. [팝업] 신규 예약 등록 폼 (검색-입력 동기화 보완)
+# #3-3. [팝업] 신규 예약 등록 폼 (매회 호출 시 초기화 보완)
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
-    # 시간 시차 보정 ㅋ
+    # --- [초기화 로직] 팝업이 열릴 때마다 이전 데이터 비우기 ㅋ ---
+    # 클릭된 날짜와 시간 정보가 바뀔 때(즉, 새 팝업을 열 때) 세션을 리셋합니다.
+    if "last_clicked_date" not in st.session_state or st.session_state.last_clicked_date != clicked_date:
+        st.session_state.res_name_input = ""
+        st.session_state.last_clicked_date = clicked_date  # 현재 클릭 정보를 저장
+
+    # 시간 시차 보정
     try:
         dt_parts = clicked_date.replace("Z", "").split("T")
         date_str, time_str = dt_parts[0], dt_parts[1][:5]
@@ -151,27 +157,26 @@ def add_res_modal(clicked_date, m_list):
     except:
         fixed_date, fixed_time = datetime.now().date(), datetime.now().time()
 
-    # 세션 초기화 및 관리 ㅋ
-    if "res_name_input" not in st.session_state:
-        st.session_state.res_name_input = ""
 
     st.write(f"📅 선택 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
     st.divider()
 
-    # 1. 검색 영역 (폼 외부) ㅋ
-    search_q = st.text_input("🔍 회원 검색", placeholder="이름 입력 시 목록이 나타납니다.")
+
+    # 1. 검색 영역 (폼 외부)
+    # placeholder를 통해 검색 유도 ㅋ
+    search_q = st.text_input("🔍 회원 검색", placeholder="성함을 입력하면 목록이 나타납니다.", key="res_search_field")
     
     if search_q:
         filtered = m_list[m_list['성함'].str.contains(search_q, na=False)]['성함'].tolist()
         if filtered:
-            # 검색 결과 선택 시 세션 상태에 즉시 반영 ㅋ
-            sel_hint = st.selectbox("검색 결과 선택 (선택 시 아래 자동 입력)", ["선택하세요"] + filtered)
+            sel_hint = st.selectbox("검색 결과 선택", ["선택하세요"] + filtered)
             if sel_hint != "선택하세요":
                 st.session_state.res_name_input = sel_hint
 
+
     # 2. 실제 저장 폼 영역
-    with st.form("res_real_form_v2", clear_on_submit=True):
-        # 검색 결과가 자동으로 이 칸에 들어갑니다 ㅋ
+    with st.form("res_real_form_final", clear_on_submit=True):
+        # 세션에 저장된 값이 초기화되었으므로 새 팝업에서는 빈 칸으로 시작합니다 ㅋ
         res_name = st.text_input("👤 예약자 성함 (필수)", value=st.session_state.res_name_input)
         
         # 상담사 자동 매칭
@@ -193,10 +198,10 @@ def add_res_modal(clicked_date, m_list):
         
         if st.form_submit_button("✅ 예약 저장"):
             if not res_name:
-                st.error("성함을 입력해 주세요! (검색 후 선택하거나 직접 입력)")
+                st.error("성함을 입력해 주세요!")
             else:
                 if manage_gsheet("reservations", [res_name, res_date.strftime("%Y-%m-%d"), item, coun, res_time_str, etc]):
-                    # 성공 시 세션 비우기 ㅋ
+                    # 저장 성공 후 깔끔하게 세션 비우기 ㅋ
                     st.session_state.res_name_input = ""
                     st.cache_data.clear()
                     st.rerun()
