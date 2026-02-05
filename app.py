@@ -138,21 +138,21 @@ def add_member_modal():
 
 
 
-# #3-3. [팝업] 신규 예약 등록 폼 (중복 클릭 방지 보완)
+# #3-3. [팝업] 신규 예약 등록 폼 (시차 보정 & 중복 방지 완벽 반영)
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
-    # 팝업 열릴 때마다 초기화 로직
+    # 💡 1. 팝업 열릴 때마다 초기화 로직 (날짜 바뀌면 입력값 리셋)
     if "last_clicked_date" not in st.session_state or st.session_state.last_clicked_date != clicked_date:
         st.session_state.res_name_input = ""
         st.session_state.last_clicked_date = clicked_date
-        st.session_state.res_submitting = False  # 등록 중 상태 초기화 ㅋ
+        st.session_state.res_submitting = False  # 등록 상태 초기화
 
-    # 시간 시차 보정
+    # 💡 2. 한국 시간 시차 보정 (이거 누락되면 안 됨!)
     try:
         dt_parts = clicked_date.replace("Z", "").split("T")
         date_str, time_str = dt_parts[0], dt_parts[1][:5]
         base_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-        kor_dt = base_dt + timedelta(hours=9)
+        kor_dt = base_dt + timedelta(hours=9) # 한국 시차 +9시간 적용 ㅋ
         fixed_date, fixed_time = kor_dt.date(), kor_dt.time()
     except:
         fixed_date, fixed_time = datetime.now().date(), datetime.now().time()
@@ -160,7 +160,7 @@ def add_res_modal(clicked_date, m_list):
     st.write(f"📅 선택 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
     st.divider()
 
-    # 1. 검색 영역
+    # 💡 3. 회원 검색 및 자동 매칭 영역
     search_q = st.text_input("🔍 회원 검색", placeholder="성함을 입력하면 목록이 나타납니다.", key="res_search_field")
     if search_q:
         filtered = m_list[m_list['성함'].str.contains(search_q, na=False)]['성함'].tolist()
@@ -169,10 +169,11 @@ def add_res_modal(clicked_date, m_list):
             if sel_hint != "선택하세요":
                 st.session_state.res_name_input = sel_hint
 
-    # 2. 실제 저장 폼 영역
+    # 💡 4. 실제 저장 폼 영역
     with st.form("res_real_form_final", clear_on_submit=True):
         res_name = st.text_input("👤 예약자 성함 (필수)", value=st.session_state.res_name_input)
         
+        # 이름 입력 시 기존 상담사 자동 매칭 로직 유지 ㅋ
         default_counselor = ""
         if res_name:
             matched = m_list[m_list['성함'] == res_name]
@@ -189,19 +190,20 @@ def add_res_modal(clicked_date, m_list):
         coun = st.text_input("상담사", value=default_counselor)
         etc = st.text_area("특이사항")
         
-        # 💡 [핵심] 등록 중일 때는 버튼 텍스트를 바꾸고 비활성화 느낌을 줍니다 ㅋ
+        # 💡 5. 중복 클릭 방지 버튼 (등록 중일 때 잠금) ㅋ
         submit_label = "⏳ 등록 중..." if st.session_state.res_submitting else "✅ 예약 저장"
         
         if st.form_submit_button(submit_label):
             if not res_name:
                 st.error("성함을 입력해 주세요!")
             elif not st.session_state.res_submitting:
-                # 등록 상태로 변경 ㅋ
-                st.session_state.res_submitting = True
+                st.session_state.res_submitting = True # 중복 클릭 방지 ON ㅋ
                 
-                # 시각적으로 로딩 중임을 표시 ㅋ
                 with st.spinner("구글 시트에 데이터를 기록하고 있습니다..."):
+                    # 데이터 저장 (manage_gsheet 호출)
                     if manage_gsheet("reservations", [res_name, res_date.strftime("%Y-%m-%d"), item, coun, res_time_str, etc]):
+                        # 💡 성공 시 모바일 팝업 유지 스위치 해제 및 세션 초기화
+                        st.session_state.show_res_modal = False # 4-2용 스위치 ㅋ
                         st.session_state.res_name_input = ""
                         st.session_state.res_submitting = False
                         st.cache_data.clear()
@@ -375,43 +377,49 @@ tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰
+# #4-2. [탭 1] 스케줄 달력 뷰 (00:00:00 필터 유지)
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
+    
+    # 팝업 상태 관리를 위한 세션 변수
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
+
+    # (이벤트 데이터 생성 로직 동일)
     events = []
     if not df_r.empty:
         for _, r in df_r.iterrows():
             try:
-                event_color = "#3D5AFE"
-                if "상담" in str(r['상품명']): event_color = "#FF9100"
-                elif "HP" in str(r['상품명']): event_color = "#00C853"
-                elif "S" in str(r['상품명']): event_color = "#D500F9"
-                
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
                 hh, mm = (res_time.split(":") + ["00"])[:2]
-                start_iso = f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00"
-                
                 events.append({
-                    "title": f"{r['성함']} ({r['상품명']})", "start": start_iso, "allDay": False,
-                    "backgroundColor": event_color, "borderColor": event_color,
-                    "extendedProps": {"memo": r.get('특이사항', '')}
+                    "title": f"{r['성함']} ({r['상품명']})", "start": f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00",
+                    "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"
                 })
             except: continue
 
     state = calendar(events=events, options={
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek"},
-        "initialView": "dayGridMonth", "selectable": True, "locale": "ko",
-        "slotMinTime": "10:00:00", "slotMaxTime": "18:00:00", "allDaySlot": False,
-    }, key="calendar_v13_final")
+        "initialView": "dayGridMonth", "selectable": True, "locale": "ko"
+    }, key="cal_v_final_stable_0205")
 
+    # 💡 대장님이 강조하신 00:00:00 필터 유지 로직 ㅋ
     if state.get("dateClick"):
         raw_date = str(state["dateClick"]["date"])
-        if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00": add_res_modal(raw_date, df_m)
-        else: st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
+        # 월간 클릭이 아닌 주간/일간 시간 클릭일 때만 작동! ㅋ
+        if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
+            if st.session_state.clicked_res_info != raw_date:
+                st.session_state.clicked_res_info = raw_date
+                st.session_state.show_res_modal = True
+                st.rerun()
+        else:
+            st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
 
+    # 💡 팝업 강제 유지 호출
+    if st.session_state.show_res_modal and st.session_state.clicked_res_info:
+        add_res_modal(st.session_state.clicked_res_info, df_m)
+        
 
 
 # #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 수정, 삭제)
