@@ -402,7 +402,6 @@ with tabs[0]:
     # 2. 💡 [핵심] 키보드 조작으로 Rerun 되어도 스위치가 ON이면 팝업을 다시 띄움!
     if st.session_state.show_res_modal and st.session_state.clicked_res_info:
         add_res_modal(st.session_state.clicked_res_info, df_m)
-        
 
 
 # #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 수정, 삭제)
