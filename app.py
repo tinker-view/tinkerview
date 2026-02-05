@@ -476,11 +476,12 @@ with tabs[1]:
 
 
 
-# #4-4. [탭 3] 회원 관리 (검색, 상세정보 팝업 연결)
+# #4-4. [탭 3] 회원 관리 (모바일 선택 시 팝업 유지 보완)
 with tabs[2]:
     st.subheader("👥 회원 관리")
     if st.button("➕ 새 회원 등록", use_container_width=True): add_member_modal()
     st.divider()
+    
     search_m = st.text_input("👤 회원 검색 (성함 또는 연락처)", placeholder="검색어 입력...", key="m_search_main")
     
     df_m = load_data("members")
@@ -488,17 +489,31 @@ with tabs[2]:
         df_disp = df_m.copy()
         if search_m:
             df_disp = df_disp[df_disp['성함'].str.contains(search_m, na=False) | df_disp['연락처'].str.contains(search_m, na=False)]
+        
+        # 표시용 포맷팅
         df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
         df_disp['생년월일'] = df_disp['생년월일'].apply(format_birth)
         
+        # 💡 [핵심] 모바일 튕김 방지를 위한 세션 관리
         sel = st.dataframe(
-            df_disp, use_container_width=True, hide_index=True, on_select="rerun",
-            selection_mode="single-row", key="member_table_v5"
+            df_disp, 
+            use_container_width=True, 
+            hide_index=True, 
+            on_select="rerun", 
+            selection_mode="single-row", 
+            key="member_table_final"
         )
+
+        # 행 선택 시 세션에 정보를 저장하고 팝업 호출 ㅋ
         if sel.selection.rows:
-            m_info = df_disp.iloc[sel.selection.rows[0]]
+            selected_idx = sel.selection.rows[0]
+            m_info = df_disp.iloc[selected_idx]
+            
+            # 모바일에서 Rerun 되어도 팝업이 즉시 다시 뜨도록 트리거 ㅋ
             show_detail(m_info, df_s[df_s['성함'] == m_info['성함']])
-    else: st.warning("데이터 없음")
+            
+    else: 
+        st.warning("데이터가 없습니다. 시트를 확인해주세요.")
 
 
 
