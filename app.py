@@ -138,19 +138,27 @@ def add_member_modal():
 
 
 
-# #3-3. [팝업] 신규 예약 등록 폼 (모바일 튕김 방지 스위치 대응)
+# #3-3. [팝업] 신규 예약 등록 폼 (중복 클릭 방지 보완)
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
+    # 팝업 열릴 때마다 초기화 로직
+    if "last_clicked_date" not in st.session_state or st.session_state.last_clicked_date != clicked_date:
+        st.session_state.res_name_input = ""
+        st.session_state.last_clicked_date = clicked_date
+        st.session_state.res_submitting = False  # 등록 중 상태 초기화 ㅋ
+
+    # 시간 시차 보정
     try:
         dt_parts = clicked_date.replace("Z", "").split("T")
         date_str, time_str = dt_parts[0], dt_parts[1][:5]
         base_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
         kor_dt = base_dt + timedelta(hours=9)
-        f_date, f_time = kor_dt.date(), kor_dt.time()
+        fixed_date, fixed_time = kor_dt.date(), kor_dt.time()
     except:
-        f_date, f_time = datetime.now().date(), datetime.now().time()
+        fixed_date, fixed_time = datetime.now().date(), datetime.now().time()
 
-    if "res_name_input" not in st.session_state: st.session_state.res_name_input = ""
+    st.write(f"📅 선택 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
+    st.divider()
 
     # 1. 검색 영역
     search_q = st.text_input("🔍 회원 검색", placeholder="성함을 입력하면 목록이 나타납니다.", key="res_search_field")
@@ -162,34 +170,45 @@ def add_res_modal(clicked_date, m_list):
                 st.session_state.res_name_input = sel_hint
 
     # 2. 실제 저장 폼 영역
-    with st.form("res_add_form_final", clear_on_submit=True):
+    with st.form("res_real_form_final", clear_on_submit=True):
         res_name = st.text_input("👤 예약자 성함 (필수)", value=st.session_state.res_name_input)
-        res_date = st.date_input("예약 날짜", value=f_date)
         
+        default_counselor = ""
+        if res_name:
+            matched = m_list[m_list['성함'] == res_name]
+            if not matched.empty:
+                default_counselor = matched.iloc[0]['상담사']
+
+        res_date = st.date_input("예약 날짜", value=fixed_date)
         time_slots = [f"{h:02d}:{m:02d}" for h in range(10, 19) for m in (0, 30)][:-1]
-        click_time_str = f_time.strftime("%H:%M")
+        click_time_str = fixed_time.strftime("%H:%M")
         default_idx = time_slots.index(click_time_str) if click_time_str in time_slots else 0
         res_time_str = st.selectbox("시간 선택", options=time_slots, index=default_idx)
 
         item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
+        coun = st.text_input("상담사", value=default_counselor)
         etc = st.text_area("특이사항")
         
-        col1, col2 = st.columns(2)
-        if col1.form_submit_button("✅ 예약 저장"):
+        # 💡 [핵심] 등록 중일 때는 버튼 텍스트를 바꾸고 비활성화 느낌을 줍니다 ㅋ
+        submit_label = "⏳ 등록 중..." if st.session_state.res_submitting else "✅ 예약 저장"
+        
+        if st.form_submit_button(submit_label):
             if not res_name:
                 st.error("성함을 입력해 주세요!")
-            else:
-                if manage_gsheet("reservations", [res_name, res_date.strftime("%Y-%m-%d"), item, "", res_time_str, etc]):
-                    # 💡 성공 시 세션 스위치 해제 ㅋ
-                    st.session_state.show_res_modal = False
-                    st.session_state.res_name_input = ""
-                    st.cache_data.clear()
-                    st.rerun()
-        
-        if col2.form_submit_button("❌ 취소"):
-            # 💡 취소 시 세션 스위치 해제 ㅋ
-            st.session_state.show_res_modal = False
-            st.rerun()
+            elif not st.session_state.res_submitting:
+                # 등록 상태로 변경 ㅋ
+                st.session_state.res_submitting = True
+                
+                # 시각적으로 로딩 중임을 표시 ㅋ
+                with st.spinner("구글 시트에 데이터를 기록하고 있습니다..."):
+                    if manage_gsheet("reservations", [res_name, res_date.strftime("%Y-%m-%d"), item, coun, res_time_str, etc]):
+                        st.session_state.res_name_input = ""
+                        st.session_state.res_submitting = False
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("등록에 실패했습니다. 다시 시도해 주세요.")
+                        st.session_state.res_submitting = False
 
 
 
