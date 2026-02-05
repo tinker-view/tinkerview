@@ -313,6 +313,39 @@ def show_detail(m_info, h_df):
                     st.cache_data.clear(); st.rerun()
 
 
+                    
+# #3-5. [팝업] 예약 정보 수정 폼
+@st.dialog("✏️ 예약 수정")
+def edit_res_modal(res_info):
+    with st.form("edit_res_form"):
+        st.write(f"### {res_info['성함']} 님 예약 수정")
+        
+        # 1. 입력창 구성
+        new_date = st.date_input("날짜", value=pd.to_datetime(res_info['날짜']).date())
+        time_slots = [f"{h:02d}:{m:02d}" for h in range(10, 19) for m in (0, 30)][:-1]
+        curr_time = str(res_info['시간']).strip()
+        default_idx = time_slots.index(curr_time) if curr_time in time_slots else 0
+        new_time = st.selectbox("시간", options=time_slots, index=default_idx)
+        
+        new_item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"], 
+                               index=["상담", "HP", "S1", "S2", "S3", "S4", "기타"].index(res_info['상품명']))
+        new_etc = st.text_area("특이사항", value=res_info['특이사항'])
+        
+        if st.form_submit_button("✅ 수정 완료"):
+            # 수정을 위한 데이터 구성 (성함, 날짜, 상품명, 상담사, 시간, 특이사항)
+            up_values = [res_info['성함'], new_date.strftime("%Y-%m-%d"), new_item, res_info['상담사'], new_time, new_etc]
+            
+            # manage_gsheet 호출 (action="update_res" 사용)
+            if manage_gsheet("reservations", up_values, action="update_res", key=res_info['성함'], 
+                            extra={"old_date": str(res_info['날짜']), "old_time": str(res_info['시간'])}):
+                st.success("예약이 수정되었습니다!")
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.error("수정 실패! GAS 배포를 확인하세요.")
+
+                
+
 
 # ==========================================
 # #4. 메인 탭 UI 및 대시보드 영역
