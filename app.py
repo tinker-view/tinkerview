@@ -18,7 +18,7 @@ from streamlit_calendar import calendar
 # #1-2. 페이지 기본 설정 및 구글 시트 연결 정보
 st.set_page_config(page_title="K-View", layout="wide")
 
-DEPLOY_URL = "https://script.google.com/macros/s/AKfycbyCQsVUvwEfA4zcjbURq3EiJpKvkJtSaINKHJEFCU5gnjITO01UgGLDNkqUNFCBCKpd/exec"
+DEPLOY_URL = "https://script.google.com/macros/s/AKfycbyy-bnPp9gZvvOSlFUFsvkGcYaTrIoR4Pyg7h6-9iDPOvIvvKHP2iqX79VCtpRUMfUz/exec"
 SPREADSHEET_ID = "1o704HhhIJrBCux7ibPdYDDq6Z00J9QoogZ2oq6Fjgfc"
 READ_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet="
 
