@@ -298,18 +298,19 @@ tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (고정식 예약 등록 보완)
+# #4-2. [탭 1] 스케줄 달력 뷰 (모바일 키보드 튕김 완벽 방어 버전)
 
 
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
 
 
-    # 💡 예약 등록창 노출 상태 관리 세션
-    if "show_res_form" not in st.session_state: st.session_state.show_res_form = False
-    if "clicked_res_date" not in st.session_state: st.session_state.clicked_res_date = None
+    # 💡 세션 상태로 등록창 열림 여부 관리 ㅋ
+    if "res_open" not in st.session_state: st.session_state.res_open = False
+    if "res_clicked_info" not in st.session_state: st.session_state.res_clicked_info = None
 
 
+    # 이벤트 데이터 준비 ㅋ
     events = []
     if not df_r.empty:
         for _, r in df_r.iterrows():
@@ -322,86 +323,82 @@ with tabs[0]:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
                 hh, mm = (res_time.split(":") + ["00"])[:2]
-                start_iso = f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00"
-                
                 events.append({
-                    "title": f"{r['성함']} ({r['상품명']})", "start": start_iso, "allDay": False,
-                    "backgroundColor": event_color, "borderColor": event_color,
-                    "extendedProps": {"memo": r.get('특이사항', '')}
+                    "title": f"{r['성함']} ({r['상품명']})", "start": f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00",
+                    "backgroundColor": event_color, "borderColor": event_color
                 })
             except: continue
 
 
-    # 달력 위젯
+    # 1. 달력 위젯 호출
     state = calendar(events=events, options={
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek"},
         "initialView": "dayGridMonth", "selectable": True, "locale": "ko",
         "slotMinTime": "10:00:00", "slotMaxTime": "18:00:00", "allDaySlot": False,
-    }, key="calendar_v14_fixed")
+    }, key="calendar_fixed_v2026")
 
 
-    # 1. 달력 클릭 시 세션 데이터 고정 (팝업 대신 하단 폼 오픈) ㅋ
+    # 2. 날짜 클릭 감지 -> 세션 고정 ㅋ
     if state.get("dateClick"):
         raw_date = str(state["dateClick"]["date"])
+        # 주간 탭에서 시간 클릭 시에만 작동 ㅋ
         if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
-            st.session_state.clicked_res_date = raw_date
-            st.session_state.show_res_form = True
+            st.session_state.res_clicked_info = raw_date
+            st.session_state.res_open = True
             st.rerun()
 
 
-    # 2. 💡 [핵심] 달력 아래에 고정으로 나타나는 예약 등록창 (키보드 튕김 방지)
-    if st.session_state.show_res_form and st.session_state.clicked_res_date:
+    # 3. 💡 [핵심] 달력 하단 고정 예약 등록창 (키보드 대응)
+    if st.session_state.res_open and st.session_state.res_clicked_info:
         st.markdown("---")
-        st.success(f"➕ **새 예약 등록** (선택된 시간: {st.session_state.clicked_res_date})")
+        st.markdown(f"### ➕ 새 예약 등록")
         
-        # #3-3에 있던 팝업용 함수 대신, 인라인 폼으로 직접 구현 ㅋ
-        clicked_date = st.session_state.clicked_res_date
-        
-        # 시간 보정
+        # 시간 보정 로직
+        c_date = st.session_state.res_clicked_info
         try:
-            dt_parts = clicked_date.replace("Z", "").split("T")
-            date_str, time_str = dt_parts[0], dt_parts[1][:5]
-            base_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+            dt_parts = c_date.replace("Z", "").split("T")
+            d_str, t_str = dt_parts[0], dt_parts[1][:5]
+            base_dt = datetime.strptime(f"{d_str} {t_str}", "%Y-%m-%d %H:%M")
             kor_dt = base_dt + timedelta(hours=9)
             f_date, f_time = kor_dt.date(), kor_dt.time()
         except:
             f_date, f_time = datetime.now().date(), datetime.now().time()
 
 
-        # 검색 및 입력 필드
-        s_name = st.text_input("🔍 예약자 검색", placeholder="이름 입력...", key="inline_res_search")
-        res_name_val = ""
+        # 검색 및 입력 (인라인 방식이라 키보드 내려가도 유지됨 ㅋ)
+        s_name = st.text_input("🔍 회원 검색", placeholder="이름 입력 시 자동 매칭...", key="inline_res_search_final")
+        matched_name = ""
         if s_name:
             filtered = df_m[df_m['성함'].str.contains(s_name, na=False)]['성함'].tolist()
             if filtered:
-                sel_hint = st.selectbox("회원 선택", ["선택하세요"] + filtered, key="inline_res_hint")
-                if sel_hint != "선택하세요": res_name_val = sel_hint
+                sel_name = st.selectbox("회원 선택", ["직접 입력/선택"] + filtered, key="inline_res_sel_final")
+                if sel_name != "직접 입력/선택": matched_name = sel_name
 
 
-        with st.form("inline_res_form"):
-            final_name = st.text_input("👤 예약자 성함", value=res_name_val)
-            res_date = st.date_input("예약 날짜", value=f_date)
+        # 실제 등록 폼
+        with st.form("inline_res_form_fixed"):
+            final_res_name = st.text_input("👤 예약자 성함", value=matched_name)
+            res_d = st.date_input("날짜", value=f_date)
             
-            time_slots = [f"{h:02d}:{m:02d}" for h in range(10, 19) for m in (0, 30)][:-1]
-            click_time_str = f_time.strftime("%H:%M")
-            default_idx = time_slots.index(click_time_str) if click_time_str in time_slots else 0
-            res_time_str = st.selectbox("시간", options=time_slots, index=default_idx)
+            t_slots = [f"{h:02d}:{m:02d}" for h in range(10, 19) for m in (0, 30)][:-1]
+            t_idx = t_slots.index(f_time.strftime("%H:%M")) if f_time.strftime("%H:%M") in t_slots else 0
+            res_t = st.selectbox("시간", options=t_slots, index=t_idx)
 
 
-            item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
-            etc = st.text_area("특이사항")
+            res_item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
+            res_etc = st.text_area("특이사항")
 
 
-            c1, c2 = st.columns(2)
-            if c1.form_submit_button("✅ 예약 저장"):
-                if final_name:
-                    if manage_gsheet("reservations", [final_name, res_date.strftime("%Y-%m-%d"), item, "", res_time_str, etc], action="add"):
-                        st.session_state.show_res_form = False
+            col1, col2 = st.columns(2)
+            if col1.form_submit_button("✅ 예약 저장"):
+                if final_res_name:
+                    if manage_gsheet("reservations", [final_res_name, res_d.strftime("%Y-%m-%d"), res_item, "", res_t, res_etc], action="add"):
+                        st.session_state.res_open = False
                         st.cache_data.clear(); st.rerun()
                 else: st.error("성함을 입력해주세요!")
             
-            if c2.form_submit_button("❌ 닫기"):
-                st.session_state.show_res_form = False
+            if col2.form_submit_button("❌ 닫기"):
+                st.session_state.res_open = False
                 st.rerun()
 
 
