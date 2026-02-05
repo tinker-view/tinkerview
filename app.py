@@ -397,19 +397,19 @@ with tabs[1]:
 
 
 
-# #4-4. [탭 3] 회원 관리 (강제 스위치 방식)
+# #4-4. [탭 3] 회원 관리 (모바일 최적화 고정식 상세조회)
 with tabs[2]:
     st.subheader("👥 회원 관리")
     
-    # 💡 세션 상태 초기화 ㅋ
-    if "show_popup" not in st.session_state: st.session_state.show_popup = False
+    # 세션 상태 초기화 (상세창 열림 여부) ㅋ
+    if "show_detail_view" not in st.session_state: st.session_state.show_detail_view = False
     if "selected_m_data" not in st.session_state: st.session_state.selected_m_data = None
 
     if st.button("➕ 새 회원 등록", use_container_width=True, key="m_add_btn_main"): 
         add_member_modal()
     st.divider()
     
-    search_m = st.text_input("👤 회원 검색 (성함 또는 연락처)", key="m_search_main_final")
+    search_m = st.text_input("👤 회원 검색 (성함 또는 연락처)", key="m_search_input_final")
     
     df_m = load_data("members")
     if not df_m.empty:
@@ -420,30 +420,71 @@ with tabs[2]:
         df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
         df_disp['생년월일'] = df_disp['생년월일'].apply(format_birth)
         
-        # 데이터프레임 선택 ㅋ
+        # 1. 회원 명단 테이블 ㅋ
         sel = st.dataframe(
             df_disp, use_container_width=True, hide_index=True, 
-            on_select="rerun", selection_mode="single-row", key="m_table_final_v3"
+            on_select="rerun", selection_mode="single-row", key="m_table_fixed"
         )
 
-        # 1. 명단에서 행을 터치했을 때 ㅋ
+        # 2. 명단에서 선택 시 데이터 고정 ㅋ
         if sel.selection.rows:
             st.session_state.selected_m_data = df_disp.iloc[sel.selection.rows[0]]
-            st.session_state.show_popup = True  # 스위치 ON ㅋ
-        
-        # 2. 💡 [핵심] 스위치가 ON 상태면 무조건 팝업 호출 (Rerun 되어도 계속 실행됨) ㅋ
-        if st.session_state.show_popup and st.session_state.selected_m_data is not None:
-            m_info = st.session_state.selected_m_data
-            # 팝업 호출 ㅋ
-            show_detail(m_info, df_s[df_s['성함'] == m_info['성함']])
+            st.session_state.show_detail_view = True
+
+        # 3. 💡 [핵심] 팝업이 아니라 '화면 하단 고정창'으로 정보 표시 ㅋ
+        # 이렇게 하면 모바일에서 상품을 눌러 리런되어도 절대 닫히지 않습니다!
+        if st.session_state.show_detail_view and st.session_state.selected_m_data is not None:
+            m = st.session_state.selected_m_data
+            st.markdown("---")
+            st.markdown(f"### 👑 {m['성함']} 회원님 상세 정보")
             
-            # 팝업이 닫힌 후(dialog 종료 후)를 위해 "닫기" 버튼 하나를 외부에 둡니다.
-            # (모바일은 다이얼로그 밖 터치 시 닫히기도 하므로 상태 초기화 버튼이 필요함 ㅋ)
-            if st.button("❌ 팝업 상태 초기화 (닫기)", key="close_popup_sw"):
-                st.session_state.show_popup = False
-                st.session_state.selected_m_data = None
+            # 조회/등록/수정 탭을 화면에 직접 그립니다 ㅋ
+            dv_tabs = st.tabs(["🔍 조회", "💰 매출등록", "✏️ 수정"])
+            
+            with dv_tabs[0]: # 상세조회
+                st.info(f"📍 No.{m['순번']} | 📞 {m['연락처']} | 🎂 {m['생년월일']}\n\n🏠 {m['주소']}\n\n👤 담당: {m['상담사']} | 📅 최초방문: {m['최초방문일']}")
+                st.write(f"📝 **비고:** {m['비고(특이사항)']}")
+                
+                # 해당 회원의 매출 내역 필터링 ㅋ
+                h_df = df_s[df_s['성함'] == m['성함']]
+                if not h_df.empty:
+                    st.write("#### 💰 최근 매출")
+                    for i, r in h_df.iterrows():
+                        c_msg, c_del = st.columns([8, 2])
+                        c_msg.write(f"📅 {r['날짜']} | {r['상품명']} | {r['수가']}원")
+                        if c_del.button("삭제", key=f"fixed_del_{i}"):
+                            if manage_gsheet("schedules", action="delete_sales", key=m['성함'], extra={"date": r['날짜'], "item": r['상품명']}):
+                                st.cache_data.clear(); st.rerun()
+
+            with dv_tabs[1]: # 매출등록
+                s_date = st.date_input("결제 날짜", datetime.now(), key="fixed_s_date")
+                st.write("📦 **상품 선택**")
+                p_cols = st.columns(3)
+                for i, k in enumerate(PRODUCT_DATA.keys()):
+                    if p_cols[i%3].button(f"{k}", key=f"fixed_p_{k}"):
+                        st.session_state.sel_items.append({"n": k, "p": PRODUCT_DATA[k]})
+                
+                f_item = st.text_input("상품명", value=", ".join([x['n'] for x in st.session_state.sel_items]), key="fixed_f_item")
+                f_su = st.text_input("수가", value=str(sum([x['p'] for x in st.session_state.sel_items])), key="fixed_f_su")
+                
+                if st.button("💰 매출 저장", key="fixed_save_btn", use_container_width=True):
+                    if manage_gsheet("schedules", [m['성함'], s_date.strftime('%Y-%m-%d'), f_item, m['상담사'], int(f_su), 0, 0, ""], action="add"):
+                        st.session_state.sel_items = []; st.cache_data.clear(); st.rerun()
+
+            with dv_tabs[2]: # 수정
+                with st.form("fixed_edit_form"):
+                    e_p = st.text_input("연락처", value=m['연락처'])
+                    e_a = st.text_input("주소", value=m['주소'])
+                    e_m = st.text_area("비고", value=m['비고(특이사항)'])
+                    if st.form_submit_button("✅ 정보 수정 완료"):
+                        up_row = [m['순번'], m['성함'], e_p, m['생년월일'], m['성별'], e_a, m['최초방문일'], m['상담사'], e_m]
+                        if manage_gsheet("members", up_row, action="update", key=m['성함']):
+                            st.cache_data.clear(); st.rerun()
+
+            if st.button("❌ 상세창 닫기", use_container_width=True):
+                st.session_state.show_detail_view = False
                 st.rerun()
-            
+                
     else: 
         st.warning("데이터 없음")
 
