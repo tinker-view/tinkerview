@@ -375,33 +375,41 @@ tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (모바일 대응 스위치 추가)
+# #4-2. [탭 1] 스케줄 달력 뷰
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
-    
-    # 💡 팝업 상태를 관리하는 세션 스위치 ㅋ
-    if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
-    if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
-
-    # (이벤트 생성 로직은 동일하므로 생략 ㅋ)
-    # ... (기존 events 리스트 생성 코드) ...
+    events = []
+    if not df_r.empty:
+        for _, r in df_r.iterrows():
+            try:
+                event_color = "#3D5AFE"
+                if "상담" in str(r['상품명']): event_color = "#FF9100"
+                elif "HP" in str(r['상품명']): event_color = "#00C853"
+                elif "S" in str(r['상품명']): event_color = "#D500F9"
+                
+                res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
+                res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
+                hh, mm = (res_time.split(":") + ["00"])[:2]
+                start_iso = f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00"
+                
+                events.append({
+                    "title": f"{r['성함']} ({r['상품명']})", "start": start_iso, "allDay": False,
+                    "backgroundColor": event_color, "borderColor": event_color,
+                    "extendedProps": {"memo": r.get('특이사항', '')}
+                })
+            except: continue
 
     state = calendar(events=events, options={
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek"},
         "initialView": "dayGridMonth", "selectable": True, "locale": "ko",
-    }, key="calendar_v14_mobile_fix")
+        "slotMinTime": "10:00:00", "slotMaxTime": "18:00:00", "allDaySlot": False,
+    }, key="calendar_v13_final")
 
-    # 1. 달력 클릭 시 스위치 ON ㅋ
     if state.get("dateClick"):
         raw_date = str(state["dateClick"]["date"])
-        if "T" in raw_date:
-            st.session_state.clicked_res_info = raw_date
-            st.session_state.show_res_modal = True
-            st.rerun()
+        if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00": add_res_modal(raw_date, df_m)
+        else: st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
 
-    # 2. 💡 [핵심] 키보드 조작으로 Rerun 되어도 스위치가 ON이면 팝업을 다시 띄움!
-    if st.session_state.show_res_modal and st.session_state.clicked_res_info:
-        add_res_modal(st.session_state.clicked_res_info, df_m)
 
 
 # #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 수정, 삭제)
