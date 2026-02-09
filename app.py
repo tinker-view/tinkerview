@@ -403,16 +403,16 @@ st.markdown("""
 # #4. 메인 탭 UI 및 대시보드 영역
 # ==========================================
 
-# #4-1. 데이터 초기 로드 및 공통 스타일 (이름 최적화 및 일요일 제거 CSS) ㅋ
+# #4-1. 데이터 초기 로드 및 스타일 (타이틀은 대장님이 지우실 수 있게 그대로 둠 ㅋ)
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
 
 st.markdown("""
     <style>
-        /* 1. 상단 중복 타이틀 박멸 */
+        /* 1. 상단 중복 타이틀 및 헤더 숨김 */
         [data-testid="stHeader"], header { visibility: hidden !important; height: 0 !important; }
         .main-title { font-size: 24px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -40px; margin-bottom: 10px; }
         
-        /* 2. 왼쪽 시간 칸 최소화 */
+        /* 2. 시간 칸 너비 최소화 */
         .fc .fc-timegrid-axis-cushion,
         .fc .fc-timegrid-slot-label-cushion {
             font-size: 11px !important;
@@ -420,41 +420,45 @@ st.markdown("""
             text-align: center !important;
         }
 
-        /* 3. 요일 헤더에서 요일만 깔끔하게 */
-        .fc-col-header-cell-cushion { font-size: 14px !important; text-decoration: none !important; color: #333 !important; }
+        /* 3. 헤더 요일/날짜 스타일 ㅋ */
+        .fc-col-header-cell-cushion { 
+            font-size: 13px !important; 
+            text-decoration: none !important; 
+            color: #333 !important; 
+            display: block !important;
+            line-height: 1.2 !important;
+        }
 
-        /* 4. [핵심] 이름 자동 맞춤 및 한 줄 유지 ㅋ */
+        /* 4. 이름 자동 맞춤 및 한 줄 유지 */
         .fc-event-main { display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 2px !important; }
         .fc-event-title-container { width: 100% !important; text-align: center !important; }
         .fc-event-title { 
             display: inline-block !important;
-            font-size: 13px !important; /* 기본 크기 ㅋ */
+            font-size: 13px !important;
             font-weight: 900 !important;
             color: #ffffff !important;
-            white-space: nowrap !important; /* 무조건 한 줄 ㅋ */
+            white-space: nowrap !important;
             overflow: hidden !important;
-            text-overflow: clip !important; /* 잘림 방지 ㅋ */
             width: 100% !important;
         }
         
-        /* 5. 시간 글자 완전 제거 ㅋ */
+        /* 5. 시간 글자 완전 제거 */
         .fc-event-time { display: none !important; }
 
-        /* 6. 시간 칸 높이 조절 */
+        /* 6. 시간 칸 높이 */
         .fc .fc-timegrid-slot { height: 55px !important; }
         
-        /* 7. 모바일 폰트 자동 축소 (이름이 길면 작게) ㅋ */
         @media screen and (max-width: 600px) {
             .fc-event-title { font-size: 11px !important; }
         }
     </style>
-    <div class="main-title">✨ K-View</div>
+    
 """, unsafe_allow_html=True)
 
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (일요일 제거 및 이름 집중) ㅋ
+# #4-2. [탭 1] 스케줄 달력 뷰 (주간 날짜 표시 모드) ㅋ
 with tabs[0]:
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
@@ -465,10 +469,7 @@ with tabs[0]:
             try:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
-                
-                # 성함만 표시 ㅋ
                 display_title = f"{r['성함']}"
-                
                 events.append({
                     "title": display_title, 
                     "start": f"{res_date}T{res_time}:00",
@@ -491,18 +492,15 @@ with tabs[0]:
         "slotMaxTime": "19:00:00",
         "height": "auto",
         "expandRows": True,
-        "slotLabelFormat": {
-            "hour": "2-digit",
-            "minute": "2-digit",
-            "hour12": False
-        },
-        "dayHeaderFormat": { "weekday": "short" },
+        "slotLabelFormat": { "hour": "2-digit", "minute": "2-digit", "hour12": False },
+        # 💡 [대장님 요청] 주간 뷰 헤더에 요일과 날짜(9) 함께 표시! ㅋ
+        "dayHeaderFormat": { "weekday": "short", "day": "numeric" },
         "displayEventTime": False,
-        "firstDay": 1, # 월요일부터 시작 ㅋ
-        "hiddenDays": [0], # 💡 [대장님 오더] 일요일(0) 아예 삭제! ㅋ
+        "firstDay": 1,
+        "hiddenDays": [0], # 일요일 제거
     }
 
-    state = calendar(events=events, options=calendar_options, key="kview_no_sunday_v9")
+    state = calendar(events=events, options=calendar_options, key="kview_week_date_v10")
 
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
