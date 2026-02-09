@@ -403,43 +403,48 @@ st.markdown("""
 # #4. 메인 탭 UI 및 대시보드 영역
 # ==========================================
 
-# #4-1. 데이터 초기 로드 및 공통 스타일 적용 (UI 정리 버전) ㅋ
+# #4-1. 데이터 초기 로드 및 공통 스타일 적용 (극한의 이름 집중 CSS) ㅋ
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
 
 st.markdown("""
     <style>
-        /* 1. 상단 타이틀 정리 (중복 방지 및 깔끔한 배치) ㅋ */
-        [data-testid="stHeader"] { display: none; } /* 스트림릿 기본 헤더 숨기기 ㅋ */
+        /* 1. 상단 타이틀 정리 */
+        [data-testid="stHeader"] { display: none; }
         .main-title { font-size: 24px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -10px; margin-bottom: 10px; }
         
-        /* 2. 왼쪽 시간 칸 너비 획기적 축소 (10:00 형식 전용) ㅋ */
+        /* 2. 왼쪽 시간 칸 최소화 (10:00 형식) */
         .fc .fc-timegrid-axis-cushion,
         .fc .fc-timegrid-slot-label-cushion {
             font-size: 11px !important;
             font-weight: 600 !important;
-            width: 35px !important; 
+            width: 32px !important; 
             padding: 0 !important;
             text-align: center !important;
         }
 
-        /* 3. 일요일은 아주 좁게, 평일은 시원하게 ㅋ */
+        /* 3. 일요일은 아주 좁게 ㅋ */
         .fc-day-sun { width: 3% !important; background-color: #fcfcfc !important; }
-        .fc-col-header-cell.fc-day-sun { font-size: 0 !important; } 
         
-        /* 4. [핵심] 주간 뷰에서 이름만 크고 아름답게! ㅋ */
-        .fc-v-event .fc-event-main { padding: 4px 2px !important; display: flex; align-items: center; justify-content: center; }
+        /* 4. [중요] 월간 달력 헤더에서 날짜(숫자) 강제 삭제! ㅋ */
+        /* 월 화 수 목 금 토 일만 남기고 옆에 붙는 날짜들 다 숨깁니다 ㅋ */
+        .fc-col-header-cell-cushion { font-size: 14px !important; text-decoration: none !important; }
+        .fc-col-header-cell-cushion::after { display: none !important; } 
+
+        /* 5. [핵심] 주간 뷰에서 이름만 큼직하게! ㅋ */
+        .fc-v-event .fc-event-main { display: flex; align-items: center; justify-content: center; padding: 0 !important; }
         .fc-event-title { 
-            font-size: 14px !important; /* 성함 크기 키움 ㅋ */
+            font-size: 15px !important; /* 성함 더 크게! ㅋ */
             font-weight: 900 !important;
             color: #ffffff !important;
             text-align: center !important;
-            white-space: nowrap !important;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: nowrap !important; /* 무조건 한줄 ㅋ */
         }
+        
+        /* 주간 뷰에서 혹시라도 보일 수 있는 시간/상품명 강제 숨김 ㅋ */
+        .fc-event-time, .fc-event-title-container br, .fc-event-title + div { display: none !important; }
 
-        /* 5. 주간 뷰 시간 칸 높이 조절 ㅋ */
-        .fc .fc-timegrid-slot { height: 55px !important; }
+        /* 6. 시간 칸 높이 조절 */
+        .fc .fc-timegrid-slot { height: 50px !important; }
     </style>
     <div class="main-title">✨ K-View</div>
 """, unsafe_allow_html=True)
@@ -447,7 +452,7 @@ st.markdown("""
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (버그 수정 및 이름 집중 모드) ㅋ
+# #4-2. [탭 1] 스케줄 달력 뷰 (이름만 나오게 제목 가공) ㅋ
 with tabs[0]:
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
@@ -459,7 +464,7 @@ with tabs[0]:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
                 
-                # 💡 주간 뷰에서는 성함만, 월간 뷰에서도 깔끔하게 성함 위주로! ㅋ
+                # 💡 제목에 아예 '성함'만 넣어서 상품명이 원천적으로 안 나오게 합니다 ㅋ
                 display_title = f"{r['성함']}"
                 
                 events.append({
@@ -476,7 +481,7 @@ with tabs[0]:
             "center": "title", 
             "right": "dayGridMonth,timeGridWeek"
         },
-        "initialView": "timeGridWeek", # 대장님 편하시게 주간 뷰로 시작 ㅋ
+        "initialView": "timeGridWeek", 
         "selectable": True, 
         "locale": "ko",
         "allDaySlot": False,
@@ -487,16 +492,16 @@ with tabs[0]:
         "slotLabelFormat": {
             "hour": "2-digit",
             "minute": "2-digit",
-            "hour12": False # 10:00 깔끔 형식 ㅋ
+            "hour12": False
         },
-        # 💡 [버그 수정] 헤더 날짜 꼬임 방지: 표준 형식으로 고정 ㅋ
-        "dayHeaderFormat": { "weekday": "short", "day": "numeric", "omitCommas": True },
-        "firstDay": 1, # 월요일부터 시작 ㅋ
+        # 💡 헤더 포맷에서 날짜(day)를 아예 빼버리고 요일만 나오게 설정 ㅋ
+        "dayHeaderFormat": { "weekday": "short" }, 
+        "firstDay": 1,
     }
 
-    state = calendar(events=events, options=calendar_options, key="kview_final_mobile_v4")
+    state = calendar(events=events, options=calendar_options, key="kview_ultra_clean_v5")
 
-    # (팝업 처리 로직은 동일하게 유지 ㅋ)
+    # (팝업 처리 로직은 그대로 유지 ㅋ)
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
         if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
