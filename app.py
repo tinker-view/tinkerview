@@ -403,16 +403,15 @@ st.markdown("""
 # #4. 메인 탭 UI 및 대시보드 영역
 # ==========================================
 
-# #4-1. 데이터 초기 로드 및 스타일 (타이틀은 대장님이 지우실 수 있게 그대로 둠 ㅋ)
+# #4-1. 데이터 초기 로드 및 공통 스타일 (K-View 타이틀 제거 완료! ㅋ)
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
 
 st.markdown("""
     <style>
-        /* 1. 상단 중복 타이틀 및 헤더 숨김 */
+        /* 1. 상단 중복 타이틀 박멸 및 헤더 여백 최적화 ㅋ */
         [data-testid="stHeader"], header { visibility: hidden !important; height: 0 !important; }
-        .main-title { font-size: 24px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -40px; margin-bottom: 10px; }
         
-        /* 2. 시간 칸 너비 최소화 */
+        /* 2. 왼쪽 시간 칸 최소화 (10:00 형식 최적화) ㅋ */
         .fc .fc-timegrid-axis-cushion,
         .fc .fc-timegrid-slot-label-cushion {
             font-size: 11px !important;
@@ -420,16 +419,14 @@ st.markdown("""
             text-align: center !important;
         }
 
-        /* 3. 헤더 요일/날짜 스타일 ㅋ */
+        /* 3. 헤더 폰트 및 요일 스타일 ㅋ */
         .fc-col-header-cell-cushion { 
             font-size: 13px !important; 
             text-decoration: none !important; 
-            color: #333 !important; 
-            display: block !important;
-            line-height: 1.2 !important;
+            color: #333 !important;
         }
 
-        /* 4. 이름 자동 맞춤 및 한 줄 유지 */
+        /* 4. 이름 자동 맞춤 및 한 줄 유지 (주간 뷰 집중) ㅋ */
         .fc-event-main { display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 2px !important; }
         .fc-event-title-container { width: 100% !important; text-align: center !important; }
         .fc-event-title { 
@@ -442,23 +439,22 @@ st.markdown("""
             width: 100% !important;
         }
         
-        /* 5. 시간 글자 완전 제거 */
+        /* 5. 파란 박스 내부 시간 글자 완전 제거 ㅋ */
         .fc-event-time { display: none !important; }
 
-        /* 6. 시간 칸 높이 */
+        /* 6. 시간 칸 높이 조절 */
         .fc .fc-timegrid-slot { height: 55px !important; }
         
         @media screen and (max-width: 600px) {
             .fc-event-title { font-size: 11px !important; }
         }
     </style>
-    
 """, unsafe_allow_html=True)
 
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (주간 날짜 표시 모드) ㅋ
+# #4-2. [탭 1] 스케줄 달력 뷰 (월간/주간 헤더 차별화) ㅋ
 with tabs[0]:
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
@@ -469,7 +465,10 @@ with tabs[0]:
             try:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
+                
+                # 💡 성함만 표시하도록 고정 ㅋ
                 display_title = f"{r['성함']}"
+                
                 events.append({
                     "title": display_title, 
                     "start": f"{res_date}T{res_time}:00",
@@ -493,15 +492,25 @@ with tabs[0]:
         "height": "auto",
         "expandRows": True,
         "slotLabelFormat": { "hour": "2-digit", "minute": "2-digit", "hour12": False },
-        # 💡 [대장님 요청] 주간 뷰 헤더에 요일과 날짜(9) 함께 표시! ㅋ
-        "dayHeaderFormat": { "weekday": "short", "day": "numeric" },
+        
+        # 💡 [핵심] 주간 뷰(timeGridWeek)와 월간 뷰(dayGridMonth) 헤더를 다르게 설정! ㅋ
+        "views": {
+            "timeGridWeek": {
+                "dayHeaderFormat": { "weekday": "short", "day": "numeric" } # 주간: 월 9
+            },
+            "dayGridMonth": {
+                "dayHeaderFormat": { "weekday": "short" } # 월간: 월 (날짜 없음) ㅋ
+            }
+        },
+        
         "displayEventTime": False,
         "firstDay": 1,
-        "hiddenDays": [0], # 일요일 제거
+        "hiddenDays": [0], # 일요일 제거 ㅋ
     }
 
-    state = calendar(events=events, options=calendar_options, key="kview_week_date_v10")
+    state = calendar(events=events, options=calendar_options, key="kview_header_diff_v11")
 
+    # (팝업 로직)
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
         if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
