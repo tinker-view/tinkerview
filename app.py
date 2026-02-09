@@ -359,97 +359,63 @@ def edit_res_modal(res_info):
 
 
 # ==========================================
-# #4. 메인 탭 UI 및 대시보드 영역
+# #4. 메인 탭 UI 및 대시보드 영역 (재고 관리 통합 버전)
 # ==========================================
 
-
-# #4-1. 공통 스타일 및 모바일 최적화 CSS
-st.markdown("""
-    <style>
-        /* 메인 타이틀 */
-        .main-title { font-size: 26px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -20px; margin-bottom: 15px; }
-        
-        /* 1. 시간 칸 줄바꿈 및 너비 축소 */
-        .fc .fc-timegrid-slot-label-cushion {
-            display: block !important;
-            line-height: 1.2 !important;
-            font-size: 11px !important; /* 시간 글자 크기 살짝 줄임 */
-            text-align: center !important;
-        }
-        
-        /* 2. 이벤트 글자 강제 줄바꿈 (이름, 상품명 다 보이게) */
-        .fc-event-main-frame { flex-direction: column !important; }
-        .fc-event-title { 
-            white-space: normal !important; 
-            overflow: visible !important; 
-            font-size: 11px !important; 
-            line-height: 1.1 !important;
-            font-weight: 500 !important;
-        }
-        
-        /* 3. 일요일 너비 좁히기 (평일 집중) */
-        .fc-day-sun { width: 8% !important; background-color: #f8f9fa; }
-        .fc-day-mon, .fc-day-tue, .fc-day-wed, .fc-day-thu, .fc-day-fri, .fc-day-sat { width: 15.3% !important; }
-        
-        /* 4. 모바일 터치 영역 확보를 위해 높이 조절 */
-        .fc .fc-timegrid-slot { height: 50px !important; }
-    </style>
-    <div class="main-title">✨ K-View</div>
-""", unsafe_allow_html=True)
-
-
-
-# ==========================================
-# #4. 메인 탭 UI 및 대시보드 영역
-# ==========================================
-
-# #4-1. 데이터 로드 및 스타일 (반응형 최적화) ㅋ
+# #4-1. 데이터 로드 및 상단 레이아웃 설정 ㅋ
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
+df_stock = load_data("stocks") # 구글 시트에 'stocks' 시트가 있어야 합니다 ㅋ
 
-# 💡 [핵심] 접속 기기 판별 (모바일 여부 체크) ㅋ
-is_mobile = st.query_params.get("auth") == "true" # 앱(유니티) 접속은 보통 쿼리스트링을 활용하므로 ㅋ
-# 만약 위 조건이 안 맞으면 간단하게 화면 너비를 기준으로 처리하는 CSS를 아래에 넣었습니다 ㅋ
+# 실시간 재고 계산 함수 ㅋ
+def get_stock_val(item_name):
+    try:
+        val = df_stock[df_stock['항목'] == item_name]['현재고'].values[0]
+        return int(val)
+    except: return 0
 
-st.markdown("""
+# 상단 바 스타일 및 재고 현황판 ㅋ
+st.markdown(f"""
     <style>
-        /* 상단 헤더 박멸 ㅋ */
-        [data-testid="stHeader"], header { visibility: hidden !important; height: 0 !important; }
+        /* 1. 기본 헤더 숨김 및 상단 바 레이아웃 */
+        [data-testid="stHeader"], header {{ visibility: hidden !important; height: 0 !important; }}
+        .top-bar {{
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: -45px; margin-bottom: 15px; padding: 0 5px;
+        }}
+        .main-title {{ font-size: 22px !important; font-weight: 800 !important; color: #1E3A8A; }}
+        .stock-badge {{
+            font-size: 13px !important; font-weight: 700 !important;
+            color: #ef4444; background: #fee2e2; padding: 4px 10px;
+            border-radius: 8px; border: 1px solid #fecaca;
+        }}
         
-        /* 왼쪽 시간 칸 다이어트 ㅋ */
-        .fc .fc-timegrid-axis-cushion, .fc .fc-timegrid-slot-label-cushion {
-            font-size: 11px !important; width: 35px !important; text-align: center !important;
-        }
+        /* 2. 달력 반응형 스타일 (PC/모바일 분리) ㅋ */
+        .fc-event-main {{ display: flex !important; align-items: center !important; justify-content: center !important; padding: 2px !important; }}
+        .fc-event-title {{ font-weight: 800 !important; color: #ffffff !important; text-align: center !important; }}
 
-        /* 공통 이벤트 스타일 ㅋ */
-        .fc-event-main { display: flex !important; align-items: center !important; justify-content: center !important; padding: 2px !important; }
-        .fc-event-title { font-weight: 800 !important; color: #ffffff !important; text-align: center !important; }
-
-        /* 📱 모바일 전용 스타일 (너비 600px 이하) ㅋ */
-        @media screen and (max-width: 600px) {
-            .fc-event-title { 
-                font-size: 12px !important; 
-                white-space: nowrap !important; /* 모바일에선 무조건 한 줄! ㅋ */
-            }
-            .fc-event-time { display: none !important; } /* 모바일에서 시간 숨김 ㅋ */
-            .fc-day-sun { width: 3% !important; background-color: #fcfcfc !important; } /* 일요일 좁게 ㅋ */
-        }
-
-        /* 💻 PC 전용 스타일 (너비 601px 이상) ㅋ */
-        @media screen and (min-width: 601px) {
-            .fc-event-title { 
-                font-size: 13px !important; 
-                white-space: normal !important; /* PC에선 줄바꿈 허용 ㅋ */
-            }
-        }
-        
-        .fc .fc-timegrid-slot { height: 55px !important; }
+        @media screen and (max-width: 600px) {{
+            .fc-event-title {{ font-size: 12px !important; white-space: nowrap !important; }}
+            .fc-event-time {{ display: none !important; }}
+            .fc-day-sun {{ width: 3% !important; background-color: #fcfcfc !important; }}
+        }}
+        @media screen and (min-width: 601px) {{
+            .fc-event-title {{ font-size: 13px !important; white-space: normal !important; }}
+        }}
+        .fc .fc-timegrid-slot {{ height: 55px !important; }}
+        .fc .fc-timegrid-axis-cushion, .fc .fc-timegrid-slot-label-cushion {{ font-size: 11px !important; width: 35px !important; }}
     </style>
+    
+    <div class="top-bar">
+        <div class="main-title">✨ K-View</div>
+        <div class="stock-badge">📦 HP: {get_stock_val("HP")} | S3: {get_stock_val("S3")}</div>
+    </div>
 """, unsafe_allow_html=True)
 
-tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
+# 💡 탭 구성 (재고 탭 추가! ㅋ)
+tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출", "📦 재고"])
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (기기별 제목 차별화) ㅋ
+# #4-2. [탭 1] 스케줄 달력 뷰
 with tabs[0]:
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
@@ -460,45 +426,27 @@ with tabs[0]:
             try:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
-                
-                # 💡 [반응형 데이터 구성] ㅋ
-                # PC에서는 정보 가득, 모바일(앱) 환경으로 추정되면 이름만!
-                # 팁: 앱에서 접속할 때 특정 URL 파라미터를 주면 더 정확하지만, 
-                # 일단은 PC용 전체 텍스트를 넣고 CSS에서 모바일일 때 시간을 숨기도록 세팅했습니다. ㅋ
+                # PC에선 시간+이름+상품명 다 나오게 세팅 ㅋ
                 display_title = f"{r['성함']} ({r['상품명']})"
-                
                 events.append({
-                    "title": display_title, 
-                    "start": f"{res_date}T{res_time}:00",
-                    "backgroundColor": "#3D5AFE", 
-                    "borderColor": "#3D5AFE"
+                    "title": display_title, "start": f"{res_date}T{res_time}:00",
+                    "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"
                 })
             except: continue
 
-    calendar_options = {
-        "headerToolbar": {
-            "left": "prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek"
-        },
-        "initialView": "timeGridWeek", 
-        "selectable": True, "locale": "ko", "allDaySlot": False,
-        "slotMinTime": "10:00:00", "slotMaxTime": "19:00:00",
-        "height": "auto", "expandRows": True,
-        "slotLabelFormat": { "hour": "2-digit", "minute": "2-digit", "hour12": False },
-        
-        # 💡 [대장님 요청] 뷰별 헤더 차별화 다시 적용! ㅋ
+    cal_opt = {
+        "headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek"},
+        "initialView": "timeGridWeek", "selectable": True, "locale": "ko", "allDaySlot": False,
+        "slotMinTime": "10:00:00", "slotMaxTime": "19:00:00", "height": "auto", "expandRows": True,
+        "slotLabelFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
         "views": {
-            "timeGridWeek": { "dayHeaderFormat": { "weekday": "short", "day": "numeric" } },
-            "dayGridMonth": { "dayHeaderFormat": { "weekday": "short" } }
+            "timeGridWeek": {"dayHeaderFormat": {"weekday": "short", "day": "numeric"}},
+            "dayGridMonth": {"dayHeaderFormat": {"weekday": "short"}}
         },
-        
-        "displayEventTime": True, # PC에서는 시간을 보여줘야 하니까 True ㅋ (모바일은 CSS로 숨김 ㅋ)
-        "firstDay": 1,
-        "hiddenDays": [0], # 일요일 삭제 ㅋ
+        "displayEventTime": True, "firstDay": 1, "hiddenDays": [0]
     }
+    state = calendar(events=events, options=cal_opt, key="kview_integrated_cal")
 
-    state = calendar(events=events, options=calendar_options, key="kview_perfect_responsive_v13")
-
-    # (팝업 로직)
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
         if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
@@ -510,23 +458,17 @@ with tabs[0]:
         st.session_state.show_res_modal = False
     if st.session_state.show_res_modal and st.session_state.clicked_res_info:
         add_res_modal(st.session_state.clicked_res_info, df_m)
-        
 
 
-# #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 수정, 삭제)
+# #4-3. [탭 2] 예약 내역 관리
 with tabs[1]:
     st.subheader("📋 예약 내역 관리")
-
-
     if not df_r.empty:
-        # --- 🔍 필터 영역 ---
-        col1, col2, col3 = st.columns(3)
-        date_range = col1.date_input("날짜 범위", [datetime.now().date(), datetime.now().date() + timedelta(days=7)], key="mgr_d_clean")
-        search_term = col2.text_input("검색 (성함/상품명)", key="mgr_s_clean")
-        sort_order = col3.selectbox("정렬", ["최신 날짜순", "오래된 날짜순", "시간순"], key="mgr_o_clean")
+        c1, c2, c3 = st.columns(3)
+        date_range = c1.date_input("날짜 범위", [datetime.now().date(), datetime.now().date() + timedelta(days=7)])
+        search_term = c2.text_input("검색 (성함/상품명)")
+        sort_order = c3.selectbox("정렬", ["최신 날짜순", "오래된 날짜순", "시간순"])
 
-
-        # --- ⚙️ 필터링 로직 ---
         f_df = df_r.copy()
         if len(date_range) == 2:
             f_df['날짜'] = pd.to_datetime(f_df['날짜']).dt.date
@@ -537,78 +479,67 @@ with tabs[1]:
         asc = [False, False] if sort_order == "최신 날짜순" else [True, True]
         f_df = f_df.sort_values(by=['날짜', '시간'] if sort_order != "시간순" else ['시간', '날짜'], ascending=asc)
 
+        sel_res = st.dataframe(f_df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
 
-        # --- 📊 예약 데이터 테이블 ---
-        sel_res = st.dataframe(
-            f_df, use_container_width=True, hide_index=True, on_select="rerun",
-            selection_mode="single-row", key="res_table_clean"
-        )
-
-
-        # --- ⚙️ 수정/삭제 액션 영역 ---
         if sel_res.selection.rows:
-            idx = sel_res.selection.rows[0]
-            row = f_df.iloc[idx]
-            
-            st.markdown(f"**📍 선택된 예약:** `{row['날짜']}` `{row['시간']}` | **{row['성함']}** 님 ({row['상품명']})")
-            
-            # 버튼 레이아웃: 수정과 삭제를 나란히 ㅋ
-            btn_col1, btn_col2, btn_spacer = st.columns([1, 1, 3])
-            
-            # 1. 수정 버튼
-            if btn_col1.button("✏️ 예약 수정", use_container_width=True):
-                # 이전에 만든 #3-5 [팝업] 예약 정보 수정 폼 호출 ㅋ
-                edit_res_modal(row) 
-                
-            # 2. 삭제 버튼
-            if btn_col2.button("🗑️ 즉시 삭제", type="primary", use_container_width=True):
-                # GAS에 삭제 요청 (성함, 날짜, 시간 조합)
+            row = f_df.iloc[sel_res.selection.rows[0]]
+            st.markdown(f"**📍 선택:** `{row['날짜']} {row['시간']}` | **{row['성함']}** ({row['상품명']})")
+            b1, b2, _ = st.columns([1, 1, 3])
+            if b1.button("✏️ 수정"): edit_res_modal(row)
+            if b2.button("🗑️ 삭제", type="primary"):
                 if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": row['날짜'], "time": row['시간']}):
-                    st.toast(f"{row['성함']} 님의 예약이 삭제되었습니다.", icon="🗑️")
-                    st.cache_data.clear()
-                    st.rerun()
-                else:
-                    st.error("삭제에 실패했습니다. 관리자에게 문의하세요.")
-
-    else:
-        st.info("등록된 예약 내역이 없습니다.")
+                    st.cache_data.clear(); st.rerun()
+    else: st.info("예약 내역이 없습니다.")
 
 
-
-# #4-4. [탭 3] 회원 관리 (검색, 상세정보 팝업 연결)
+# #4-4. [탭 3] 회원 관리
 with tabs[2]:
     st.subheader("👥 회원 관리")
     if st.button("➕ 새 회원 등록", use_container_width=True): add_member_modal()
     st.divider()
-    search_m = st.text_input("👤 회원 검색 (성함 또는 연락처)", placeholder="검색어 입력...", key="m_search_main")
-    
-    df_m = load_data("members")
+    search_m = st.text_input("👤 회원 검색", placeholder="성함 또는 연락처 입력...")
     if not df_m.empty:
         df_disp = df_m.copy()
         if search_m:
             df_disp = df_disp[df_disp['성함'].str.contains(search_m, na=False) | df_disp['연락처'].str.contains(search_m, na=False)]
         df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
-        df_disp['생년월일'] = df_disp['생년월일'].apply(format_birth)
-        
-        sel = st.dataframe(
-            df_disp, use_container_width=True, hide_index=True, on_select="rerun",
-            selection_mode="single-row", key="member_table_v5"
-        )
+        sel = st.dataframe(df_disp, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
         if sel.selection.rows:
             m_info = df_disp.iloc[sel.selection.rows[0]]
             show_detail(m_info, df_s[df_s['성함'] == m_info['성함']])
     else: st.warning("데이터 없음")
 
 
-
-# #4-5. [탭 4] 매출 통계 및 로그아웃
+# #4-5. [탭 4] 매출 통계
 with tabs[3]:
+    st.subheader("📊 매출 통계")
     if not df_s.empty:
         calc_df = df_s.copy()
-        for c in ['수가', '특가', '정산']: 
+        for c in ['수가', '특가', '정산']:
             calc_df[c] = pd.to_numeric(calc_df[c].apply(lambda x: str(x).replace(',', '')), errors='coerce').fillna(0)
         st.dataframe(df_s, use_container_width=True, hide_index=True)
         st.metric("총 정산 합계", f"{calc_df['정산'].sum():,.0f}원")
 
-if st.sidebar.button("로그아웃"): 
+
+# #4-6. [탭 5] 재고 관리 (신규! ㅋ)
+with tabs[4]:
+    st.subheader("📦 필수 재고 관리")
+    col1, col2 = st.columns(2)
+    items = ["HP", "S3"]
+    
+    for i, item in enumerate(items):
+        with [col1, col2][i % 2]:
+            current = get_stock_val(item)
+            st.metric(f"{item} 현재고", f"{current}개")
+            new_qty = st.number_input(f"{item} 증감량", value=0, key=f"adj_{item}", help="+는 입고, -는 출고 ㅋ")
+            if st.button(f"{item} 반영", key=f"btn_{item}"):
+                if manage_gsheet("stocks", action="update_stock", key=item, extra={"new_total": current + new_qty}):
+                    st.success("반영 완료!"); st.cache_data.clear(); st.rerun()
+
+    st.divider()
+    st.write("📋 **전체 재고 현황**")
+    st.table(df_stock) # 시트 내용을 표로 보여줌 ㅋ
+
+if st.sidebar.button("로그아웃"):
     st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
+
