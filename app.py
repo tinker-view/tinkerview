@@ -403,45 +403,46 @@ st.markdown("""
 # #4. 메인 탭 UI 및 대시보드 영역
 # ==========================================
 
-# #4-1. 데이터 초기 로드 및 공통 스타일 적용 (모바일 최적화 CSS 포함) ㅋ
+# #4-1. 데이터 초기 로드 및 공통 스타일 적용 (공간 확보 최적화 CSS) ㅋ
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
 
 st.markdown("""
     <style>
-        /* 메인 타이틀 스타일 */
-        .main-title { font-size: 26px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -20px; margin-bottom: 15px; }
+        .main-title { font-size: 24px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -20px; margin-bottom: 10px; }
         
-        /* 1. 시간 표시 칸(왼쪽) 너비 줄이고 줄바꿈 처리 ㅋ */
+        /* 1. 왼쪽 시간 칸 너비를 강제로 확 줄임 (핵심!) ㅋ */
+        .fc .fc-timegrid-axis-cushion,
         .fc .fc-timegrid-slot-label-cushion {
-            display: block !important;
-            line-height: 1.2 !important;
-            font-size: 10px !important;
+            padding: 0 2px !important;
+            font-size: 9px !important; /* 글자 크기 축소 */
+            line-height: 1.1 !important;
             text-align: center !important;
-            white-space: pre-line !important; /* 오전/10시 줄바꿈 허용 */
+            width: 30px !important; /* 너비 고정 */
+            white-space: pre-line !important; /* 줄바꿈 허용 */
         }
-        .fc .fc-timegrid-axis-cushion { width: 40px !important; } /* 시간칸 가로폭 고정 ㅋ */
+        .fc-timegrid-axis { width: 35px !important; }
 
-        /* 2. 이벤트 내부 글자 줄바꿈 (이름, 상품명 다 보이게) ㅋ */
-        .fc-event-main { padding: 2px !important; }
-        .fc-event-main-frame { flex-direction: column !important; }
+        /* 2. 주간 뷰에서 일요일 비중 축소 및 평일 확장 ㅋ */
+        /* 일요일(0)은 아주 좁게, 월~토는 넓게 배치 */
+        .fc-day-sun { width: 5% !important; background-color: #f8f9fa !important; opacity: 0.5; }
+        .fc-col-header-cell.fc-day-sun { font-size: 0 !important; } /* 일요일 글자 숨기기 */
+        
+        /* 3. 예약 박스(이벤트) 내부 글자 줄바꿈 및 여백 제거 ㅋ */
+        .fc-v-event .fc-event-main { padding: 1px !important; }
         .fc-event-title { 
+            display: block !important;
             white-space: normal !important; 
-            overflow: visible !important; 
-            font-size: 11px !important; 
-            line-height: 1.2 !important;
+            font-size: 10px !important; 
+            line-height: 1.1 !important;
             font-weight: 600 !important;
-            color: #ffffff !important;
+            word-break: break-all !important; /* 글자 단위 줄바꿈 */
         }
 
-        /* 3. 요일별 너비 조절 (일요일은 좁게, 평일은 넓게!) ㅋ */
-        .fc-col-header-cell.fc-day-sun { width: 7% !important; background-color: #fff1f0; } /* 일요일 ㅋ */
-        .fc-col-header-cell.fc-day-sat { background-color: #f0f5ff; } /* 토요일은 살짝 푸르게 ㅋ */
+        /* 4. 시간 눈금 높이를 키워 터치 및 가독성 확보 ㅋ */
+        .fc .fc-timegrid-slot { height: 70px !important; }
         
-        /* 4. 주간 뷰에서 시간 칸 높이 조절 (터치하기 편하게 ㅋ) */
-        .fc .fc-timegrid-slot { height: 60px !important; border-bottom: 1px sexy #eee !important; }
-        
-        /* 5. 월간 뷰 날짜 숫자 크기 조절 */
-        .fc .fc-daygrid-day-number { font-size: 12px !important; padding: 4px !important; }
+        /* 5. 월간 뷰에서 이벤트 제목 가독성 ㅋ */
+        .fc-daygrid-event { white-space: normal !important; }
     </style>
     <div class="main-title">✨ K-View</div>
 """, unsafe_allow_html=True)
@@ -449,10 +450,8 @@ st.markdown("""
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (모바일 최적화 및 레이아웃 수정) ㅋ
+# #4-2. [탭 1] 스케줄 달력 뷰 (가로 폭 극대화 설정) ㅋ
 with tabs[0]:
-    st.subheader("📅 스케줄 달력")
-    
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
 
@@ -463,47 +462,44 @@ with tabs[0]:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
                 
-                # 💡 월간/주간 모두에서 [시간 이름 상품명]이 다 보이도록 구성 ㅋ
+                # 💡 [시간\n성함\n상품명] 순서로 줄바꿈하여 좁은 칸에서도 다 보이게 구성 ㅋ
                 display_title = f"{res_time}\n{r['성함']}\n{r['상품명']}"
                 
                 events.append({
                     "title": display_title, 
                     "start": f"{res_date}T{res_time}:00",
                     "backgroundColor": "#3D5AFE", 
-                    "borderColor": "#3D5AFE",
-                    "textColor": "#ffffff"
+                    "borderColor": "#3D5AFE"
                 })
             except: continue
 
-    # 💡 대장님이 원하시는 레이아웃 옵션 총집합! ㅋ
     calendar_options = {
         "headerToolbar": {
-            "left": "prev,next today", 
+            "left": "prev,next", 
             "center": "title", 
             "right": "dayGridMonth,timeGridWeek"
         },
-        "initialView": "dayGridMonth", 
+        "initialView": "timeGridWeek", # 처음부터 주간 뷰로 보이게 설정 ㅋ
         "selectable": True, 
         "locale": "ko",
         "allDaySlot": False,
-        "slotMinTime": "10:00:00",       # 시작: 오전 10시
-        "slotMaxTime": "19:00:00",       # 종료: 오후 7시
+        "slotMinTime": "10:00:00",
+        "slotMaxTime": "19:00:00",
         "height": "auto",
         "expandRows": True,
-        # 💡 시간 표시 형식을 [오전/오후\n10시] 처럼 보이게 줄바꿈 설정 ㅋ
+        # 💡 시간을 [오전/오후\n10시] 형태로 아주 좁게 줄바꿈 ㅋ
         "slotLabelFormat": {
             "hour": "numeric",
-            "minute": "2-digit",
-            "omitZeroMinute": False,
-            "meridiem": "narrow", # '오전/오후'를 '오' 한글자로 표시하거나 짧게 ㅋ
+            "meridiem": "narrow", 
             "hour12": True
         },
-        "dayMaxEvents": 3,               # 월간 뷰에서 일정 너무 많으면 +더보기 표시 ㅋ
-        "firstDay": 1,                   # 월요일부터 시작 (선택 사항, 일요일부터면 0 ㅋ)
+        "dayHeaderFormat": { "weekday": "short", "day": "numeric" }, # '월 9' 형태로 짧게 ㅋ
+        "firstDay": 1, # 월요일부터 시작해서 평일에 집중! ㅋ
     }
 
-    state = calendar(events=events, options=calendar_options, key="kview_mobile_cal_v3")
+    state = calendar(events=events, options=calendar_options, key="kview_ultra_mobile_v1")
 
+    # (이하 팝업 처리 로직 동일...)
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
         if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
@@ -511,13 +507,8 @@ with tabs[0]:
                 st.session_state.clicked_res_info = raw_date
                 st.session_state.show_res_modal = True
                 st.rerun()
-        else:
-            st.session_state.show_res_modal = False
-            st.toast("예약은 '주간' 탭에서 시간을 클릭해 주세요! 📅", icon="💡")
-    
     elif state.get("callback") and state.get("callback") != "dateClick":
         st.session_state.show_res_modal = False
-
     if st.session_state.show_res_modal and st.session_state.clicked_res_info:
         add_res_modal(st.session_state.clicked_res_info, df_m)
         
