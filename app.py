@@ -203,7 +203,11 @@ with tabs[1]:
         f_df = df_r.copy(); f_df['날짜'] = pd.to_datetime(f_df['날짜']).dt.date
         if f_type == "오늘": f_df = f_df[f_df['날짜'] == today]
         elif f_type == "이번 주": f_df = f_df[(f_df['날짜'] >= today) & (f_df['날짜'] <= today + timedelta(days=7))]
-        elif f_type == "이번 달": f_df = f_df[(f_df['날짜'] >= today) & (f_df['날짜'] <= today + timedelta(days=30))]
+        elif f_type == "이번 달": 
+            # 💡 이번 달 1일부터 마지막 날까지 딱 맞춰서 필터링! ㅋ
+            first_day = today.replace(day=1)
+            last_day = today.replace(day=py_calendar.monthrange(today.year, today.month)[1])
+            f_df = f_df[(f_df['날짜'] >= first_day) & (f_df['날짜'] <= last_day)]
         if search: f_df = f_df[f_df['성함'].str.contains(search, na=False) | f_df['상품명'].str.contains(search, na=False)]
         f_df = f_df.sort_values(by=['날짜', '시간'], ascending=[True, True])
         sel_res = st.dataframe(f_df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
