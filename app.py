@@ -554,7 +554,3 @@ with tabs[4]:
                         st.rerun()
                     else:
                         st.error("재고 반영에 실패했습니다. GAS 배포 상태를 확인하세요!
-
-if st.sidebar.button("로그아웃"):
-    st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
-
