@@ -504,34 +504,32 @@ with tabs[3]:
 
 
 
-# #4-6. [탭 5] 재고 관리 ㅋ
+# #4-6. [탭 5] 재고 관리
 with tabs[4]:
     st.subheader("📦 필수 재고 관리")
-    col1, col2 = st.columns(2)
-    items = ["HP", "S3"]
-    for i, item in enumerate(items):
-        with [col1, col2][i % 2]:
-            current = get_stock_val(item)
-            st.metric(f"{item} 현재고", f"{current}개")
-            new_qty = st.number_input(f"{item} 증감량 (+/-)", value=0, key=f"adj_{item}")
-            
-            if st.button(f"{item} 반영", key=f"btn_{item}"):
-                # 1. 시트에 업데이트 쏘기 ㅋ
-                if manage_gsheet("stocks", action="update_stock", key=item, extra={"new_total": str(current + new_qty)}):
-                    st.success(f"{item} 반영 완료!")
-                    
-                    # 💡 2. 여기가 핵심! 모든 캐시를 비우고 즉시 다시 로드합니다 ㅋ
-                    st.cache_data.clear() 
-                    
-                    # 💡 3. 강제로 페이지를 재실행해서 상단바까지 갱신! ㅋ
-                    st.rerun() 
-
-    st.divider()
-    st.write("📋 **전체 재고 현황**")
-    if df_stock is not None and not df_stock.empty:
-        st.dataframe(df_stock, use_container_width=True, hide_index=True)
-    else:
-        st.warning("⚠️ 시트 데이터를 불러오는 중입니다...")
-        if st.button("🔄 지금 바로 새로고침"):
+    
+    # 💡 [중요] 현재 불러온 데이터 상태를 직접 확인 ㅋ
+    if df_stock is None or df_stock.empty:
+        st.error("🚨 'stocks' 시트의 데이터를 읽어오지 못했습니다!")
+        st.info("구글 시트의 탭 이름이 'stocks'이고, 1행이 '항목', '현재고' 인지 다시 확인해주세요.")
+        if st.button("🔄 시트 데이터 강제 새로고침"):
             st.cache_data.clear()
             st.rerun()
+    else:
+        col1, col2 = st.columns(2)
+        items = ["HP", "S3"]
+        for i, item in enumerate(items):
+            with [col1, col2][i % 2]:
+                current = get_stock_val(item)
+                # 숫자가 아닌 문자(?)가 오면 0으로 처리 ㅋ
+                display_val = current if isinstance(current, int) else 0
+                st.metric(f"{item} 현재고", f"{display_val}개")
+                
+                new_qty = st.number_input(f"{item} 증감량", value=0, key=f"adj_v2_{item}")
+                if st.button(f"{item} 반영", key=f"btn_v2_{item}"):
+                    if manage_gsheet("stocks", action="update_stock", key=item, extra={"new_total": str(display_val + new_qty)}):
+                        st.success("반영 완료!"); st.cache_data.clear(); st.rerun()
+
+        st.divider()
+        st.write("📋 **전체 재고 리스트 (시트 원본)**")
+        st.dataframe(df_stock, use_container_width=True, hide_index=True)
