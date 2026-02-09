@@ -158,20 +158,60 @@ def add_res_modal(clicked_date, m_list):
                     st.session_state.show_res_modal = False; st.cache_data.clear(); st.rerun()
 
 
+
+# #4. [팝업] 회원 상세 정보 및 매출/수정 통합 관리 ㅋ
 @st.dialog("👤 회원 정보 및 매출 관리")
 def show_detail(m_info, h_df):
     if "pop_id" not in st.session_state or st.session_state.pop_id != m_info['성함']:
         st.session_state.sel_items = []; st.session_state.pop_id = m_info['성함']
+
     t_v, t_s, t_e = st.tabs(["🔍 상세조회", "💰 매출등록", "✏️ 정보수정"])
+    
+    # --- [탭 1] 상세조회 로직 복구 ㅋ ---
     with t_v:
-        st.markdown(f'<div style="background-color:#1E90FF; padding:12px; border-radius:8px; text-align:center;"><h3 style="color:white; margin:0;">👑 {m_info["성함"]} 상세 정보</h3></div>', unsafe_allow_html=True)
-        st.write(""); st.markdown(f"**순번:** {m_info['순번']} | **연락처:** {format_phone(m_info['연락처'])} | **생일:** {format_birth(m_info['생년월일'])}")
+        st.markdown(f"""
+            <div style="background-color:#1E90FF; padding:12px; border-radius:8px; margin-bottom:20px; text-align:center;">
+                <h3 style="margin:0; color:white;">👑 {m_info['성함']} <span style="font-size:14px; opacity:0.8;">회원님 상세 정보</span></h3>
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown(f"""
+            <div style="background-color:#ffffff; padding:20px; border-radius:10px; border:1px solid #e1e4e8; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">No. / 성함</span>
+                    <b style="font-size:18px; color:#333;">{m_info['순번']}번 / {m_info['성함']}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">연락처 / 생년월일</span>
+                    <b style="font-size:18px; color:#333;">{format_phone(m_info['연락처'])} / {format_birth(m_info['생년월일'])}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">주소</span>
+                    <b style="font-size:16px; color:#333;">{m_info['주소'] if m_info['주소'] else '-'}</b>
+                </div>
+                <div style="margin-bottom:12px; border-bottom:1px solid #f0f2f5; padding-bottom:8px;">
+                    <span style="color:#888; font-size:13px; display:block;">담당 상담사 / 최초방문일</span>
+                    <b style="font-size:16px; color:#333;">{m_info['상담사']} / {m_info['최초방문일']}</b>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.write("") 
+        st.markdown(f"📝 **비고(특이사항)**")
+        st.info(m_info['비고(특이사항)'] if m_info['비고(특이사항)'] else "내용 없음")
+        
         st.divider()
+        st.write("#### 💰 최근 매출 내역")
         if not h_df.empty:
             for i, r in h_df.iterrows():
-                ci, cd = st.columns([8, 2]); ci.write(f"📅 {r['날짜']} | 📦 {r['상품명']} | 💰 **{r['수가']}원**")
+                ci, cd = st.columns([8, 2])
+                ci.write(f"📅 {r['날짜']} | 📦 {r['상품명']} | 💰 **{r['수가']}원**")
                 if st.session_state.user_role == "admin" and cd.button("삭제", key=f"d_{i}"):
-                    if manage_gsheet("schedules", action="delete_sales", key=m_info['성함'], extra={"date": r['날짜'], "item": r['상품명']}): st.cache_data.clear(); st.rerun()
+                    if manage_gsheet("schedules", action="delete_sales", key=m_info['성함'], extra={"date": r['날짜'], "item": r['상품명']}):
+                        st.cache_data.clear(); st.rerun()
+        else: st.write("내역 없음")
+
+    
     with t_s:
         if st.session_state.user_role != "admin": st.warning("매출 등록 권한이 없습니다.")
         else:
