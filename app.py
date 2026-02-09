@@ -553,4 +553,13 @@ with tabs[4]:
                         st.cache_data.clear() # 캐시 비워서 상단바 수치 갱신 ㅋ
                         st.rerun()
                     else:
-                        st.error("재고 반영에 실패했습니다. GAS 배포 상태를 확인하세요!
+                        st.error("재고 반영에 실패했습니다. GAS 배포 상태를 확인하세요! ㅠ")
+
+    st.divider()
+    st.write("📋 **전체 재고 현황**")
+    # 최신 데이터를 보여주기 위해 df_stock 대신 새로 로드한 데이터를 쓸 수도 있습니다 ㅋ
+    st.table(df_stock)
+
+if st.sidebar.button("로그아웃"):
+    st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
+    
