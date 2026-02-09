@@ -359,35 +359,38 @@ def edit_res_modal(res_info):
 
 
 # ==========================================
-# #4. 메인 탭 UI 및 대시보드 영역 (재고 관리 통합 버전)
+# #4. 메인 탭 UI 및 대시보드 영역 (데이터 연동 보강 버전)
 # ==========================================
 
 # #4-1. 데이터 로드 및 상단 레이아웃 설정 ㅋ
-df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
+try:
+    df_m = load_data("members")
+    df_s = load_data("schedules")
+    df_r = load_data("reservations")
+    # 💡 stocks 시트 로드 (캐시 문제 방지를 위해 로직 보강 ㅋ)
+    df_stock = load_data("stocks")
+except:
+    df_stock = None
 
-# 💡 'stocks' 시트를 명확하게 로드하고 캐시를 비워줍니다 ㅋ
-df_stock = load_data("stocks")
-
-# 💡 실시간 재고 계산 함수 (데이터가 없을 때 예외처리 강화 ㅋ)
+# 💡 실시간 재고 계산 함수 (예외 처리 강화형 ㅋ)
 def get_stock_val(item_name):
-    # 1. 시트가 비어있는지 확인 ㅋ
     if df_stock is None or df_stock.empty:
         return 0
     try:
-        # 2. '항목' 컬럼에서 일치하는 행을 찾음 (공백 제거 처리 ㅋ)
-        target_row = df_stock[df_stock['항목'].astype(str).str.strip() == item_name]
-        if not target_row.empty:
-            val = target_row['현재고'].values[0]
-            return int(float(val)) # 소수점 포함 가능성 대비 ㅋ
+        # 컬럼명 공백 제거 후 '항목' 매칭 ㅋ
+        temp_df = df_stock.copy()
+        temp_df.columns = temp_df.columns.str.strip()
+        row = temp_df[temp_df['항목'].astype(str).str.strip() == item_name]
+        if not row.empty:
+            val = pd.to_numeric(row['현재고'].values[0], errors='coerce')
+            return int(val) if not pd.isna(val) else 0
+    except:
         return 0
-    except Exception as e:
-        print(f"Error fetching stock for {item_name}: {e}")
-        return 0
+    return 0
 
 # 상단 바 스타일 및 재고 현황판 ㅋ
 st.markdown(f"""
     <style>
-        /* 1. 기본 헤더 숨김 및 상단 바 레이아웃 */
         [data-testid="stHeader"], header {{ visibility: hidden !important; height: 0 !important; }}
         .top-bar {{
             display: flex; justify-content: space-between; align-items: center;
@@ -399,21 +402,16 @@ st.markdown(f"""
             color: #ef4444; background: #fee2e2; padding: 4px 10px;
             border-radius: 8px; border: 1px solid #fecaca;
         }}
-        
-        /* 2. 달력 반응형 스타일 (PC/모바일 분리) ㅋ */
+        /* 달력 공통 스타일 ㅋ */
         .fc-event-main {{ display: flex !important; align-items: center !important; justify-content: center !important; padding: 2px !important; }}
         .fc-event-title {{ font-weight: 800 !important; color: #ffffff !important; text-align: center !important; }}
-
         @media screen and (max-width: 600px) {{
             .fc-event-title {{ font-size: 12px !important; white-space: nowrap !important; }}
             .fc-event-time {{ display: none !important; }}
             .fc-day-sun {{ width: 3% !important; background-color: #fcfcfc !important; }}
         }}
-        @media screen and (min-width: 601px) {{
-            .fc-event-title {{ font-size: 13px !important; white-space: normal !important; }}
-        }}
+        @media screen and (min-width: 601px) {{ .fc-event-title {{ font-size: 13px !important; white-space: normal !important; }} }}
         .fc .fc-timegrid-slot {{ height: 55px !important; }}
-        .fc .fc-timegrid-axis-cushion, .fc .fc-timegrid-slot-label-cushion {{ font-size: 11px !important; width: 35px !important; }}
     </style>
     
     <div class="top-bar">
@@ -422,54 +420,38 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# 💡 탭 구성 (재고 탭 추가! ㅋ)
+# 💡 탭 구성
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출", "📦 재고"])
-
 
 # #4-2. [탭 1] 스케줄 달력 뷰
 with tabs[0]:
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
-
     events = []
     if not df_r.empty:
         for _, r in df_r.iterrows():
             try:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
-                # PC에선 시간+이름+상품명 다 나오게 세팅 ㅋ
                 display_title = f"{r['성함']} ({r['상품명']})"
-                events.append({
-                    "title": display_title, "start": f"{res_date}T{res_time}:00",
-                    "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"
-                })
+                events.append({"title": display_title, "start": f"{res_date}T{res_time}:00", "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"})
             except: continue
-
     cal_opt = {
         "headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek"},
         "initialView": "timeGridWeek", "selectable": True, "locale": "ko", "allDaySlot": False,
         "slotMinTime": "10:00:00", "slotMaxTime": "19:00:00", "height": "auto", "expandRows": True,
         "slotLabelFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False},
-        "views": {
-            "timeGridWeek": {"dayHeaderFormat": {"weekday": "short", "day": "numeric"}},
-            "dayGridMonth": {"dayHeaderFormat": {"weekday": "short"}}
-        },
+        "views": {"timeGridWeek": {"dayHeaderFormat": {"weekday": "short", "day": "numeric"}}, "dayGridMonth": {"dayHeaderFormat": {"weekday": "short"}}},
         "displayEventTime": True, "firstDay": 1, "hiddenDays": [0]
     }
     state = calendar(events=events, options=cal_opt, key="kview_integrated_cal")
-
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
         if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
             if st.session_state.clicked_res_info != raw_date:
-                st.session_state.clicked_res_info = raw_date
-                st.session_state.show_res_modal = True
-                st.rerun()
-    elif state.get("callback") and state.get("callback") != "dateClick":
-        st.session_state.show_res_modal = False
-    if st.session_state.show_res_modal and st.session_state.clicked_res_info:
-        add_res_modal(st.session_state.clicked_res_info, df_m)
-
+                st.session_state.clicked_res_info = raw_date; st.session_state.show_res_modal = True; st.rerun()
+    elif state.get("callback") and state.get("callback") != "dateClick": st.session_state.show_res_modal = False
+    if st.session_state.show_res_modal and st.session_state.clicked_res_info: add_res_modal(st.session_state.clicked_res_info, df_m)
 
 # #4-3. [탭 2] 예약 내역 관리
 with tabs[1]:
@@ -479,40 +461,31 @@ with tabs[1]:
         date_range = c1.date_input("날짜 범위", [datetime.now().date(), datetime.now().date() + timedelta(days=7)])
         search_term = c2.text_input("검색 (성함/상품명)")
         sort_order = c3.selectbox("정렬", ["최신 날짜순", "오래된 날짜순", "시간순"])
-
         f_df = df_r.copy()
         if len(date_range) == 2:
             f_df['날짜'] = pd.to_datetime(f_df['날짜']).dt.date
             f_df = f_df[(f_df['날짜'] >= date_range[0]) & (f_df['날짜'] <= date_range[1])]
-        if search_term:
-            f_df = f_df[f_df['성함'].str.contains(search_term, na=False) | f_df['상품명'].str.contains(search_term, na=False)]
-        
+        if search_term: f_df = f_df[f_df['성함'].str.contains(search_term, na=False) | f_df['상품명'].str.contains(search_term, na=False)]
         asc = [False, False] if sort_order == "최신 날짜순" else [True, True]
         f_df = f_df.sort_values(by=['날짜', '시간'] if sort_order != "시간순" else ['시간', '날짜'], ascending=asc)
-
         sel_res = st.dataframe(f_df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
-
         if sel_res.selection.rows:
             row = f_df.iloc[sel_res.selection.rows[0]]
             st.markdown(f"**📍 선택:** `{row['날짜']} {row['시간']}` | **{row['성함']}** ({row['상품명']})")
             b1, b2, _ = st.columns([1, 1, 3])
             if b1.button("✏️ 수정"): edit_res_modal(row)
             if b2.button("🗑️ 삭제", type="primary"):
-                if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": row['날짜'], "time": row['시간']}):
-                    st.cache_data.clear(); st.rerun()
+                if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": row['날짜'], "time": row['시간']}): st.cache_data.clear(); st.rerun()
     else: st.info("예약 내역이 없습니다.")
-
 
 # #4-4. [탭 3] 회원 관리
 with tabs[2]:
     st.subheader("👥 회원 관리")
     if st.button("➕ 새 회원 등록", use_container_width=True): add_member_modal()
-    st.divider()
-    search_m = st.text_input("👤 회원 검색", placeholder="성함 또는 연락처 입력...")
+    st.divider(); search_m = st.text_input("👤 회원 검색", placeholder="성함 또는 연락처 입력...")
     if not df_m.empty:
         df_disp = df_m.copy()
-        if search_m:
-            df_disp = df_disp[df_disp['성함'].str.contains(search_m, na=False) | df_disp['연락처'].str.contains(search_m, na=False)]
+        if search_m: df_disp = df_disp[df_disp['성함'].str.contains(search_m, na=False) | df_disp['연락처'].str.contains(search_m, na=False)]
         df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
         sel = st.dataframe(df_disp, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
         if sel.selection.rows:
@@ -520,65 +493,34 @@ with tabs[2]:
             show_detail(m_info, df_s[df_s['성함'] == m_info['성함']])
     else: st.warning("데이터 없음")
 
-
 # #4-5. [탭 4] 매출 통계
 with tabs[3]:
     st.subheader("📊 매출 통계")
     if not df_s.empty:
         calc_df = df_s.copy()
-        for c in ['수가', '특가', '정산']:
-            calc_df[c] = pd.to_numeric(calc_df[c].apply(lambda x: str(x).replace(',', '')), errors='coerce').fillna(0)
+        for c in ['수가', '특가', '정산']: calc_df[c] = pd.to_numeric(calc_df[c].apply(lambda x: str(x).replace(',', '')), errors='coerce').fillna(0)
         st.dataframe(df_s, use_container_width=True, hide_index=True)
         st.metric("총 정산 합계", f"{calc_df['정산'].sum():,.0f}원")
 
-
-# #4-6. [탭 5] 재고 관리 (수정 완료! ㅋ)
+# #4-6. [탭 5] 재고 관리 (연동 보강 완료! ㅋ)
 with tabs[4]:
     st.subheader("📦 필수 재고 관리")
     col1, col2 = st.columns(2)
     items = ["HP", "S3"]
-    
     for i, item in enumerate(items):
         with [col1, col2][i % 2]:
             current = get_stock_val(item)
             st.metric(f"{item} 현재고", f"{current}개")
-            
-            # 💡 증감량을 입력받습니다 ㅋ
             new_qty = st.number_input(f"{item} 증감량 (+/-)", value=0, key=f"adj_{item}")
-            
             if st.button(f"{item} 반영", key=f"btn_{item}"):
-                if new_qty == 0:
-                    st.warning("변동 수량을 입력해주세요! ㅋ")
-                else:
-                    # 💡 GAS의 doGet(e) 방식에 맞춰 파라미터를 구성합니다 ㅋ
-                    # extra에 담긴 값이 URL의 &new_total=... 형식으로 전달됩니다 ㅋ
-                    success = manage_gsheet(
-                        sheet="stocks", 
-                        action="update_stock", 
-                        key=item, 
-                        extra={"new_total": str(current + new_qty)} # 💡 문자로 변환해서 전달 ㅋ
-                    )
-                    
-                    if success:
-                        st.success(f"{item} 재고가 {current + new_qty}개로 업데이트되었습니다! ㅋ")
-                        st.cache_data.clear() # 캐시 비워서 상단바 수치 갱신 ㅋ
-                        st.rerun()
-                    else:
-                        st.error("재고 반영에 실패했습니다. GAS 배포 상태를 확인하세요! ㅠ")
+                if manage_gsheet("stocks", action="update_stock", key=item, extra={"new_total": str(current + new_qty)}):
+                    st.success(f"{item} 반영 완료!"); st.cache_data.clear(); st.rerun()
 
-    st.divider()
-    st.write("📋 **전체 재고 현황**")
-    
-    # 💡 데이터가 로드되었는지 확인 후 출력 ㅋ
+    st.divider(); st.write("📋 **전체 재고 현황**")
     if df_stock is not None and not df_stock.empty:
         st.dataframe(df_stock, use_container_width=True, hide_index=True)
     else:
-        # 💡 데이터가 안 불러와질 경우 경고 표시 ㅋ
-        st.warning("구글 시트 'stocks'에서 데이터를 불러올 수 없습니다. 시트 이름을 확인해 주세요!")
-        if st.button("데이터 다시 불러오기"):
-            st.cache_data.clear()
-            st.rerun()
+        st.warning("⚠️ 'stocks' 시트 연결 확인이 필요합니다!")
+        if st.button("🔄 데이터 강제 새로고침"): st.cache_data.clear(); st.rerun()
 
-if st.sidebar.button("로그아웃"):
-    st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
-    
+if st.sidebar.button("로그아웃"): st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
