@@ -201,10 +201,15 @@ with tabs[1]:
         f_type = c1.radio("📅 기간", ["오늘", "이번 주", "이번 달", "전체"], horizontal=True, index=1)
         search = c2.text_input("🔍 검색")
         f_df = df_r.copy(); f_df['날짜'] = pd.to_datetime(f_df['날짜']).dt.date
-        if f_type == "오늘": f_df = f_df[f_df['날짜'] == today]
-        elif f_type == "이번 주": f_df = f_df[(f_df['날짜'] >= today) & (f_df['날짜'] <= today + timedelta(days=7))]
+        if f_type == "오늘": 
+            f_df = f_df[f_df['날짜'] == today]
+        elif f_type == "이번 주": 
+            # 💡 이번 주 월요일부터 일요일까지 계산 ㅋ
+            start_of_week = today - timedelta(days=today.weekday()) # 월요일
+            end_of_week = start_of_week + timedelta(days=6)         # 일요일
+            f_df = f_df[(f_df['날짜'] >= start_of_week) & (f_df['날짜'] <= end_of_week)]
         elif f_type == "이번 달": 
-            # 💡 이번 달 1일과 마지막 날짜를 계산해서 당월 데이터만 추출! ㅋ
+            # 💡 이번 달 1일부터 마지막 날까지 딱 맞춰서 필터링! ㅋ
             first_day = today.replace(day=1)
             last_day = today.replace(day=py_calendar.monthrange(today.year, today.month)[1])
             f_df = f_df[(f_df['날짜'] >= first_day) & (f_df['날짜'] <= last_day)]
