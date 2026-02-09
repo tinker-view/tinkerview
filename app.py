@@ -364,14 +364,25 @@ def edit_res_modal(res_info):
 
 # #4-1. 데이터 로드 및 상단 레이아웃 설정 ㅋ
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
-df_stock = load_data("stocks") # 구글 시트에 'stocks' 시트가 있어야 합니다 ㅋ
 
-# 실시간 재고 계산 함수 ㅋ
+# 💡 'stocks' 시트를 명확하게 로드하고 캐시를 비워줍니다 ㅋ
+df_stock = load_data("stocks")
+
+# 💡 실시간 재고 계산 함수 (데이터가 없을 때 예외처리 강화 ㅋ)
 def get_stock_val(item_name):
+    # 1. 시트가 비어있는지 확인 ㅋ
+    if df_stock is None or df_stock.empty:
+        return 0
     try:
-        val = df_stock[df_stock['항목'] == item_name]['현재고'].values[0]
-        return int(val)
-    except: return 0
+        # 2. '항목' 컬럼에서 일치하는 행을 찾음 (공백 제거 처리 ㅋ)
+        target_row = df_stock[df_stock['항목'].astype(str).str.strip() == item_name]
+        if not target_row.empty:
+            val = target_row['현재고'].values[0]
+            return int(float(val)) # 소수점 포함 가능성 대비 ㅋ
+        return 0
+    except Exception as e:
+        print(f"Error fetching stock for {item_name}: {e}")
+        return 0
 
 # 상단 바 스타일 및 재고 현황판 ㅋ
 st.markdown(f"""
@@ -557,8 +568,16 @@ with tabs[4]:
 
     st.divider()
     st.write("📋 **전체 재고 현황**")
-    # 최신 데이터를 보여주기 위해 df_stock 대신 새로 로드한 데이터를 쓸 수도 있습니다 ㅋ
-    st.table(df_stock)
+    
+    # 💡 데이터가 로드되었는지 확인 후 출력 ㅋ
+    if df_stock is not None and not df_stock.empty:
+        st.dataframe(df_stock, use_container_width=True, hide_index=True)
+    else:
+        # 💡 데이터가 안 불러와질 경우 경고 표시 ㅋ
+        st.warning("구글 시트 'stocks'에서 데이터를 불러올 수 없습니다. 시트 이름을 확인해 주세요!")
+        if st.button("데이터 다시 불러오기"):
+            st.cache_data.clear()
+            st.rerun()
 
 if st.sidebar.button("로그아웃"):
     st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
