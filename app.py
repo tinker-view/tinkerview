@@ -129,17 +129,19 @@ def add_member_modal():
                 if manage_gsheet("members", row, action="add"): st.cache_data.clear(); st.rerun()
 
 
-# #4-3. [팝업] 신규 예약 등록 모달 (시차 보정 로직 포함) ㅋ
+# #4-3. [팝업] 신규 예약 등록 모달 (시차 보정 및 상태 초기화 완벽 반영) ㅋ
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
     if "last_clicked_date" not in st.session_state or st.session_state.last_clicked_date != clicked_date:
         st.session_state.res_name_input = ""; st.session_state.last_clicked_date = clicked_date; st.session_state.res_submitting = False
+
 
     try:
         dt_parts = clicked_date.replace("Z", "").split("T")
         kor_dt = datetime.strptime(f"{dt_parts[0]} {dt_parts[1][:5]}", "%Y-%m-%d %H:%M") + timedelta(hours=9)
         fixed_date, fixed_time = kor_dt.date(), kor_dt.time()
     except: fixed_date, fixed_time = datetime.now().date(), datetime.now().time()
+
 
     st.write(f"📅 선택 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
     search_q = st.text_input("🔍 회원 검색", key="res_search_field")
@@ -149,6 +151,7 @@ def add_res_modal(clicked_date, m_list):
             sel_hint = st.selectbox("검색 결과 선택", ["선택하세요"] + filtered)
             if sel_hint != "선택하세요": st.session_state.res_name_input = sel_hint
 
+
     with st.form("res_real_form_final", clear_on_submit=True):
         res_name = st.text_input("👤 예약자 성함 (필수)", value=st.session_state.res_name_input)
         res_date = st.date_input("예약 날짜", value=fixed_date)
@@ -157,11 +160,19 @@ def add_res_modal(clicked_date, m_list):
         item = st.selectbox("상품명", ["상담", "HP", "S1", "S2", "S3", "S4", "기타"])
         coun = st.text_input("상담사", value=m_list[m_list['성함']==res_name]['상담사'].iloc[0] if not m_list[m_list['성함']==res_name].empty else "")
         etc = st.text_area("특이사항")
+
+
         if st.form_submit_button("✅ 예약 저장"):
             if res_name and not st.session_state.res_submitting:
                 st.session_state.res_submitting = True
                 if manage_gsheet("reservations", [res_name, res_date.strftime("%Y-%m-%d"), item, coun, res_time_str, etc]):
-                    st.session_state.show_res_modal = False; st.cache_data.clear(); st.rerun()
+                    # 💡 성공 시 모든 팝업 관련 상태 초기화 후 리런 ㅋ
+                    st.session_state.show_res_modal = False
+                    st.session_state.clicked_date = None
+                    st.session_state.res_name_input = ""
+                    st.cache_data.clear()
+                    st.rerun()
+
 
 
 # #4-4. [팝업] 회원 상세 정보 및 매출/수정 통합 관리 모달 ㅋ
@@ -290,20 +301,15 @@ st.markdown(f"""
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출", "📦 재고"])
 
 
-# #6-1. [탭 1] 스케줄 달력 (새로고침 방지 및 클릭 로직 강화) ㅋ
-
-
+# #6-1. [탭 1] 스케줄 달력 (팝업 간섭 방지 및 클릭 연동) ㅋ
 with tabs[0]:
-    # 💡 팝업 상태 관리 초기화 ㅋ
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
-    if "clicked_date" not in st.session_state: st.session_state.clicked_date = None
 
-    # 달력 이벤트 데이터 구성 ㅋ
+
     events = []
     if not df_r.empty:
         for _, r in df_r.iterrows():
             try:
-                # 날짜 형식 클리닝 (. -> - 변환) ㅋ
                 res_date = str(r['날짜']).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r['시간']))
                 events.append({
@@ -312,8 +318,8 @@ with tabs[0]:
                     "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"
                 })
             except: continue
-            
-    # 달력 옵션 설정 ㅋ
+
+
     cal_opt = {
         "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek"},
         "initialView": "timeGridWeek", "locale": "ko", "allDaySlot": False,
@@ -321,22 +327,21 @@ with tabs[0]:
         "selectable": True, "slotEventOverlap": False,
         "slotLabelFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False}
     }
-    
-    # 💡 [핵심] 달력 위젯 호출 (key를 동적으로 관리하지 않고 고정하되, 콜백 처리를 정교하게 ㅋ)
-    state = calendar(events=events, options=cal_opt, key="kview_cal_final")
-    
-    # 💡 [핵심] 클릭 이벤트 처리 (중복 rerun 방지 로직) ㅋ
+
+
+    state = calendar(events=events, options=cal_opt, key="kview_main_cal_v3")
+
+
     if state.get("callback") == "dateClick":
         new_date = state["dateClick"]["date"]
-        # 이전에 클릭한 날짜와 다를 때만 팝업을 띄우고 리런 ㅋ
-        if st.session_state.clicked_date != new_date:
+        if st.session_state.get("clicked_date") != new_date:
             st.session_state.clicked_date = new_date
             st.session_state.show_res_modal = True
             st.rerun()
 
-    # 💡 팝업(모달) 띄우기 ㅋ
-    if st.session_state.show_res_modal and st.session_state.clicked_date:
-        # 등록 시 m_list(df_m)를 넘겨서 자동 매칭 활성화 ㅋ
+
+    # 💡 팝업 호출을 탭 내부로 제한하여 다른 탭 간섭 방지 ㅋ
+    if st.session_state.show_res_modal and st.session_state.get("clicked_date"):
         add_res_modal(st.session_state.clicked_date, df_m)
         
 
@@ -366,17 +371,40 @@ with tabs[1]:
                 if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": str(row['날짜']), "time": row['시간']}): st.cache_data.clear(); st.rerun()
 
 
-# #6-3. [탭 3] 회원 관리 ㅋ
+# #6-3. [탭 3] 회원 관리 (팝업 충돌 방지 로직 포함) ㅋ
 with tabs[2]:
     st.subheader("👥 회원 관리")
-    if st.button("➕ 새 회원 등록", use_container_width=True): add_member_modal()
-    s_m = st.text_input("👤 검색")
+    
+    if st.button("➕ 새 회원 등록", use_container_width=True):
+        # 💡 다른 팝업 신호 강제 종료 후 회원 등록 팝업 호출 ㅋ
+        st.session_state.show_res_modal = False
+        st.session_state.clicked_date = None
+        add_member_modal()
+
+
+    st.divider()
+    search_m = st.text_input("👤 회원 검색 (성함 또는 연락처 입력...)")
+
+
     if not df_m.empty:
         df_disp = df_m.copy()
-        if s_m: df_disp = df_disp[df_disp['성함'].str.contains(s_m, na=False) | df_disp['연락처'].str.contains(s_m, na=False)]
-        sel = st.dataframe(df_disp, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
+        if search_m:
+            df_disp = df_disp[df_disp['성함'].str.contains(search_m, na=False) | df_disp['연락처'].str.contains(search_m, na=False)]
+        
+        df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
+        sel = st.dataframe(df_disp, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", key="mem_table_main")
+
+
         if sel.selection.rows:
-            m = df_disp.iloc[sel.selection.rows[0]]; show_detail(m, df_s[df_s['성함'] == m['성함']])
+            # 💡 회원을 선택하는 순간 예약 팝업 스위치를 강제로 끕니다 ㅋ
+            st.session_state.show_res_modal = False
+            st.session_state.clicked_date = None
+            
+            m_info = df_disp.iloc[sel.selection.rows[0]]
+            show_detail(m_info, df_s[df_s['성함'] == m_info['성함']])
+    else:
+        st.warning("등록된 회원 데이터가 없습니다.")
+
 
 
 # #6-4. [탭 4] 매출 통계 ㅋ
