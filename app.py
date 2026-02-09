@@ -106,6 +106,7 @@ if not st.session_state.authenticated:
 # ==========================================
 
 
+# #4-1. 텍스트 포맷팅 유틸리티 ㅋ
 def format_phone(p):
     c = re.sub(r'\D', '', str(p)); return f"{c[:3]}-{c[3:7]}-{c[7:]}" if len(c) == 11 else c
 
@@ -114,6 +115,7 @@ def format_birth(b):
     c = re.sub(r'\D', '', str(b)); return f"{c[:4]}.{c[4:6]}.{c[6:]}" if len(c) == 8 else c
 
 
+# #4-2. [팝업] 신규 회원 등록 모달 ㅋ
 @st.dialog("👤 새 회원 등록")
 def add_member_modal():
     with st.form("add_member_form", clear_on_submit=True):
@@ -127,15 +129,18 @@ def add_member_modal():
                 if manage_gsheet("members", row, action="add"): st.cache_data.clear(); st.rerun()
 
 
+# #4-3. [팝업] 신규 예약 등록 모달 (시차 보정 로직 포함) ㅋ
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
     if "last_clicked_date" not in st.session_state or st.session_state.last_clicked_date != clicked_date:
         st.session_state.res_name_input = ""; st.session_state.last_clicked_date = clicked_date; st.session_state.res_submitting = False
+
     try:
         dt_parts = clicked_date.replace("Z", "").split("T")
         kor_dt = datetime.strptime(f"{dt_parts[0]} {dt_parts[1][:5]}", "%Y-%m-%d %H:%M") + timedelta(hours=9)
         fixed_date, fixed_time = kor_dt.date(), kor_dt.time()
     except: fixed_date, fixed_time = datetime.now().date(), datetime.now().time()
+
     st.write(f"📅 선택 시간: **{fixed_date} {fixed_time.strftime('%H:%M')}**")
     search_q = st.text_input("🔍 회원 검색", key="res_search_field")
     if search_q:
@@ -143,6 +148,7 @@ def add_res_modal(clicked_date, m_list):
         if filtered:
             sel_hint = st.selectbox("검색 결과 선택", ["선택하세요"] + filtered)
             if sel_hint != "선택하세요": st.session_state.res_name_input = sel_hint
+
     with st.form("res_real_form_final", clear_on_submit=True):
         res_name = st.text_input("👤 예약자 성함 (필수)", value=st.session_state.res_name_input)
         res_date = st.date_input("예약 날짜", value=fixed_date)
@@ -158,16 +164,16 @@ def add_res_modal(clicked_date, m_list):
                     st.session_state.show_res_modal = False; st.cache_data.clear(); st.rerun()
 
 
-
-# #4. [팝업] 회원 상세 정보 및 매출/수정 통합 관리 ㅋ
+# #4-4. [팝업] 회원 상세 정보 및 매출/수정 통합 관리 모달 ㅋ
 @st.dialog("👤 회원 정보 및 매출 관리")
 def show_detail(m_info, h_df):
     if "pop_id" not in st.session_state or st.session_state.pop_id != m_info['성함']:
         st.session_state.sel_items = []; st.session_state.pop_id = m_info['성함']
 
     t_v, t_s, t_e = st.tabs(["🔍 상세조회", "💰 매출등록", "✏️ 정보수정"])
+
     
-    # --- [탭 1] 상세조회 로직 복구 ㅋ ---
+    # --- [탭 1] 회원 상세 조회 ㅋ ---
     with t_v:
         st.markdown(f"""
             <div style="background-color:#1E90FF; padding:12px; border-radius:8px; margin-bottom:20px; text-align:center;">
@@ -195,23 +201,18 @@ def show_detail(m_info, h_df):
                 </div>
             </div>
         """, unsafe_allow_html=True)
+        st.write(""); st.markdown(f"📝 **비고(특이사항)**"); st.info(m_info['비고(특이사항)'] if m_info['비고(특이사항)'] else "내용 없음")
         
-        st.write("") 
-        st.markdown(f"📝 **비고(특이사항)**")
-        st.info(m_info['비고(특이사항)'] if m_info['비고(특이사항)'] else "내용 없음")
-        
-        st.divider()
-        st.write("#### 💰 최근 매출 내역")
+        st.divider(); st.write("#### 💰 최근 매출 내역")
         if not h_df.empty:
             for i, r in h_df.iterrows():
-                ci, cd = st.columns([8, 2])
-                ci.write(f"📅 {r['날짜']} | 📦 {r['상품명']} | 💰 **{r['수가']}원**")
+                ci, cd = st.columns([8, 2]); ci.write(f"📅 {r['날짜']} | 📦 {r['상품명']} | 💰 **{r['수가']}원**")
                 if st.session_state.user_role == "admin" and cd.button("삭제", key=f"d_{i}"):
-                    if manage_gsheet("schedules", action="delete_sales", key=m_info['성함'], extra={"date": r['날짜'], "item": r['상품명']}):
-                        st.cache_data.clear(); st.rerun()
+                    if manage_gsheet("schedules", action="delete_sales", key=m_info['성함'], extra={"date": r['날짜'], "item": r['상품명']}): st.cache_data.clear(); st.rerun()
         else: st.write("내역 없음")
 
-    
+
+    # --- [탭 2] 매출 등록 관리 ㅋ ---
     with t_s:
         if st.session_state.user_role != "admin": st.warning("매출 등록 권한이 없습니다.")
         else:
@@ -225,6 +226,9 @@ def show_detail(m_info, h_df):
                 if st.form_submit_button("💰 매출 저장"):
                     if manage_gsheet("schedules", [m_info['성함'], s_date.strftime('%Y-%m-%d'), f_item, m_info['상담사'], int(re.sub(r'\D','',v_su)), 0, 0, ""]):
                         st.session_state.sel_items = []; st.cache_data.clear(); st.rerun()
+
+
+    # --- [탭 3] 회원 정보 수정 ㅋ ---
     with t_e:
         with st.form("ef"):
             e_n = st.text_input("성함", value=m_info['성함']); e_p = st.text_input("연락처", value=m_info['연락처'])
@@ -232,6 +236,7 @@ def show_detail(m_info, h_df):
                 if manage_gsheet("members", [m_info['순번'], e_n, e_p, m_info['생년월일'], m_info['성별'], m_info['주소'], m_info['최초방문일'], m_info['상담사'], m_info['비고(특이사항)']], action="update", key=m_info['성함']): st.cache_data.clear(); st.rerun()
 
 
+# #4-5. [팝업] 예약 정보 수정 모달 ㅋ
 @st.dialog("✏️ 예약 수정")
 def edit_res_modal(res_info):
     with st.form("edit_res_form"):
@@ -243,6 +248,7 @@ def edit_res_modal(res_info):
         if st.form_submit_button("✅ 수정 완료"):
             if manage_gsheet("reservations", [res_info['성함'], n_date.strftime("%Y-%m-%d"), n_item, res_info['상담사'], n_time, n_etc], action="update_res", key=res_info['성함'], extra={"old_date": res_info['날짜'], "old_time": res_info['시간']}): st.cache_data.clear(); st.rerun()
 
+            
 
 # ==========================================
 # #5. 메인 레이아웃 및 상단 바 영역
@@ -284,19 +290,55 @@ st.markdown(f"""
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출", "📦 재고"])
 
 
-# #6-1. [탭 1] 스케줄 달력 ㅋ
+# #6-1. [탭 1] 스케줄 달력 (새로고침 방지 및 클릭 로직 강화) ㅋ
+
+
 with tabs[0]:
+    # 💡 팝업 상태 관리 초기화 ㅋ
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
+    if "clicked_date" not in st.session_state: st.session_state.clicked_date = None
+
+    # 달력 이벤트 데이터 구성 ㅋ
     events = []
     if not df_r.empty:
         for _, r in df_r.iterrows():
-            events.append({"title": f"{r['성함']} ({r['상품명']})", "start": f"{str(r['날짜']).replace('.','-')}T{str(r['시간'])}:00", "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"})
-    cal_opt = {"headerToolbar": {"left": "prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek"}, "initialView": "timeGridWeek", "locale": "ko", "allDaySlot": False, "slotMinTime": "10:00:00", "slotMaxTime": "19:00:00", "height": "auto", "expandRows": True, "slotLabelFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False}, "views": {"timeGridWeek": {"dayHeaderFormat": {"weekday": "short", "day": "numeric"}}, "dayGridMonth": {"dayHeaderFormat": {"weekday": "short"}}}, "displayEventTime": True, "firstDay": 1, "hiddenDays": [0]}
-    state = calendar(events=events, options=cal_opt, key="kview_cal")
+            try:
+                # 날짜 형식 클리닝 (. -> - 변환) ㅋ
+                res_date = str(r['날짜']).replace("'", "").replace(".", "-").strip()
+                res_time = re.sub(r'[^0-9:]', '', str(r['시간']))
+                events.append({
+                    "title": f"{r['성함']} ({r['상품명']})", 
+                    "start": f"{res_date}T{res_time}:00", 
+                    "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"
+                })
+            except: continue
+            
+    # 달력 옵션 설정 ㅋ
+    cal_opt = {
+        "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek"},
+        "initialView": "timeGridWeek", "locale": "ko", "allDaySlot": False,
+        "slotMinTime": "10:00:00", "slotMaxTime": "19:00:00", "height": "auto",
+        "selectable": True, "slotEventOverlap": False,
+        "slotLabelFormat": {"hour": "2-digit", "minute": "2-digit", "hour12": False}
+    }
+    
+    # 💡 [핵심] 달력 위젯 호출 (key를 동적으로 관리하지 않고 고정하되, 콜백 처리를 정교하게 ㅋ)
+    state = calendar(events=events, options=cal_opt, key="kview_cal_final")
+    
+    # 💡 [핵심] 클릭 이벤트 처리 (중복 rerun 방지 로직) ㅋ
     if state.get("callback") == "dateClick":
-        st.session_state.clicked_res_info = str(state["dateClick"]["date"])
-        if "T" in st.session_state.clicked_res_info: st.session_state.show_res_modal = True; st.rerun()
-    if st.session_state.show_res_modal: add_res_modal(st.session_state.clicked_res_info, df_m)
+        new_date = state["dateClick"]["date"]
+        # 이전에 클릭한 날짜와 다를 때만 팝업을 띄우고 리런 ㅋ
+        if st.session_state.clicked_date != new_date:
+            st.session_state.clicked_date = new_date
+            st.session_state.show_res_modal = True
+            st.rerun()
+
+    # 💡 팝업(모달) 띄우기 ㅋ
+    if st.session_state.show_res_modal and st.session_state.clicked_date:
+        # 등록 시 m_list(df_m)를 넘겨서 자동 매칭 활성화 ㅋ
+        add_res_modal(st.session_state.clicked_date, df_m)
+        
 
 
 # #6-2. [탭 2] 예약 내역 관리 ㅋ
