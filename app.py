@@ -521,7 +521,7 @@ with tabs[3]:
         st.metric("총 정산 합계", f"{calc_df['정산'].sum():,.0f}원")
 
 
-# #4-6. [탭 5] 재고 관리 (신규! ㅋ)
+# #4-6. [탭 5] 재고 관리 (수정 완료! ㅋ)
 with tabs[4]:
     st.subheader("📦 필수 재고 관리")
     col1, col2 = st.columns(2)
@@ -531,14 +531,29 @@ with tabs[4]:
         with [col1, col2][i % 2]:
             current = get_stock_val(item)
             st.metric(f"{item} 현재고", f"{current}개")
-            new_qty = st.number_input(f"{item} 증감량", value=0, key=f"adj_{item}", help="+는 입고, -는 출고 ㅋ")
+            
+            # 💡 증감량을 입력받습니다 ㅋ
+            new_qty = st.number_input(f"{item} 증감량 (+/-)", value=0, key=f"adj_{item}")
+            
             if st.button(f"{item} 반영", key=f"btn_{item}"):
-                if manage_gsheet("stocks", action="update_stock", key=item, extra={"new_total": current + new_qty}):
-                    st.success("반영 완료!"); st.cache_data.clear(); st.rerun()
-
-    st.divider()
-    st.write("📋 **전체 재고 현황**")
-    st.table(df_stock) # 시트 내용을 표로 보여줌 ㅋ
+                if new_qty == 0:
+                    st.warning("변동 수량을 입력해주세요! ㅋ")
+                else:
+                    # 💡 GAS의 doGet(e) 방식에 맞춰 파라미터를 구성합니다 ㅋ
+                    # extra에 담긴 값이 URL의 &new_total=... 형식으로 전달됩니다 ㅋ
+                    success = manage_gsheet(
+                        sheet="stocks", 
+                        action="update_stock", 
+                        key=item, 
+                        extra={"new_total": str(current + new_qty)} # 💡 문자로 변환해서 전달 ㅋ
+                    )
+                    
+                    if success:
+                        st.success(f"{item} 재고가 {current + new_qty}개로 업데이트되었습니다! ㅋ")
+                        st.cache_data.clear() # 캐시 비워서 상단바 수치 갱신 ㅋ
+                        st.rerun()
+                    else:
+                        st.error("재고 반영에 실패했습니다. GAS 배포 상태를 확인하세요!
 
 if st.sidebar.button("로그아웃"):
     st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
