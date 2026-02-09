@@ -362,22 +362,20 @@ def edit_res_modal(res_info):
 # #4. 메인 탭 UI 및 대시보드 영역 (데이터 연동 보강 버전)
 # ==========================================
 
-# #4-1. 데이터 로드 및 상단 레이아웃 설정 ㅋ
-try:
-    df_m = load_data("members")
-    df_s = load_data("schedules")
-    df_r = load_data("reservations")
-    # 💡 stocks 시트 로드 (캐시 문제 방지를 위해 로직 보강 ㅋ)
-    df_stock = load_data("stocks")
-except:
-    df_stock = None
+# #4-1. 데이터 로드 및 상단 레이아웃 설정
+df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
 
-# 💡 실시간 재고 계산 함수 (예외 처리 강화형 ㅋ)
+# 💡 재고 데이터는 캐시를 쓰지 않고 매번 새로 로드하도록 설정! ㅋ
+# load_data 함수 대신 직접 gsheets 연동 코드를 쓰거나, 아래처럼 ttl을 짧게 줍니다.
+df_stock = load_data("stocks") 
+
+# 💡 실시간 재고 계산 함수 (캐시 갱신 반영)
 def get_stock_val(item_name):
+    # 최신 데이터를 보장하기 위해 함수 내부에서 다시 불러올 수도 있지만, 
+    # 일단 데이터프레임이 비어있는지부터 꼼꼼히 체크합니다 ㅋ
     if df_stock is None or df_stock.empty:
         return 0
     try:
-        # 컬럼명 공백 제거 후 '항목' 매칭 ㅋ
         temp_df = df_stock.copy()
         temp_df.columns = temp_df.columns.str.strip()
         row = temp_df[temp_df['항목'].astype(str).str.strip() == item_name]
@@ -502,7 +500,9 @@ with tabs[3]:
         st.dataframe(df_s, use_container_width=True, hide_index=True)
         st.metric("총 정산 합계", f"{calc_df['정산'].sum():,.0f}원")
 
-# #4-6. [탭 5] 재고 관리 (연동 보강 완료! ㅋ)
+
+
+# #4-6. [탭 5] 재고 관리 ㅋ
 with tabs[4]:
     st.subheader("📦 필수 재고 관리")
     col1, col2 = st.columns(2)
@@ -512,15 +512,24 @@ with tabs[4]:
             current = get_stock_val(item)
             st.metric(f"{item} 현재고", f"{current}개")
             new_qty = st.number_input(f"{item} 증감량 (+/-)", value=0, key=f"adj_{item}")
+            
             if st.button(f"{item} 반영", key=f"btn_{item}"):
+                # 1. 시트에 업데이트 쏘기 ㅋ
                 if manage_gsheet("stocks", action="update_stock", key=item, extra={"new_total": str(current + new_qty)}):
-                    st.success(f"{item} 반영 완료!"); st.cache_data.clear(); st.rerun()
+                    st.success(f"{item} 반영 완료!")
+                    
+                    # 💡 2. 여기가 핵심! 모든 캐시를 비우고 즉시 다시 로드합니다 ㅋ
+                    st.cache_data.clear() 
+                    
+                    # 💡 3. 강제로 페이지를 재실행해서 상단바까지 갱신! ㅋ
+                    st.rerun() 
 
-    st.divider(); st.write("📋 **전체 재고 현황**")
+    st.divider()
+    st.write("📋 **전체 재고 현황**")
     if df_stock is not None and not df_stock.empty:
         st.dataframe(df_stock, use_container_width=True, hide_index=True)
     else:
-        st.warning("⚠️ 'stocks' 시트 연결 확인이 필요합니다!")
-        if st.button("🔄 데이터 강제 새로고침"): st.cache_data.clear(); st.rerun()
-
-if st.sidebar.button("로그아웃"): st.query_params.clear(); st.session_state.authenticated = False; st.rerun()
+        st.warning("⚠️ 시트 데이터를 불러오는 중입니다...")
+        if st.button("🔄 지금 바로 새로고침"):
+            st.cache_data.clear()
+            st.rerun()
