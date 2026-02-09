@@ -232,10 +232,14 @@ with tabs[3]:
         t_rev = pd.to_numeric(df_s['정산'].apply(lambda x: str(x).replace(',','')), errors='coerce').sum()
         st.metric("총 정산 합계", f"{t_rev:,.0f}원")
 
+# 💡 [문법 오류 수정 완료] ㅋ
 with tabs[4]:
     st.subheader("📦 필수 재고 관리")
     if df_stock is None or df_stock.empty:
-        st.error("🚨 'stocks' 시트 로드 실패"); if st.button("🔄 새로고침"): st.cache_data.clear(); st.rerun()
+        st.error("🚨 'stocks' 시트 로드 실패")
+        if st.button("🔄 새로고침"):
+            st.cache_data.clear()
+            st.rerun()
     else:
         col1, col2 = st.columns(2)
         for i, item in enumerate(["HP", "S3"]):
