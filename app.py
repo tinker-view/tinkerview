@@ -194,34 +194,80 @@ with tabs[0]:
         if "T" in st.session_state.clicked_res_info: st.session_state.show_res_modal = True; st.rerun()
     if st.session_state.show_res_modal: add_res_modal(st.session_state.clicked_res_info, df_m)
 
+
+# #4-3. [탭 2] 예약 내역 관리 (기간 필터 및 시간순 정렬 완벽 반영) ㅋ
 with tabs[1]:
     st.subheader("📋 예약 내역 관리")
+    
     if not df_r.empty:
-        c1, c2 = st.columns([2, 2]); today = datetime.now().date()
-        f_type = c1.radio("📅 기간", ["오늘", "이번 주", "이번 달", "전체"], horizontal=True, index=1)
-        search = c2.text_input("🔍 검색")
-        f_df = df_r.copy(); f_df['날짜'] = pd.to_datetime(f_df['날짜']).dt.date
+        # 1. 상단 필터 레이아웃 ㅋ
+        c1, c2 = st.columns([2, 2])
+        today = datetime.now().date()
+        
+        # 📅 기간 선택 라디오 버튼 ㅋ
+        f_type = c1.radio("📅 조회 기간", ["오늘", "이번 주", "이번 달", "전체"], horizontal=True, index=1)
+        
+        # 🔍 성함/상품명 검색 ㅋ
+        search = c2.text_input("🔍 예약 검색 (성함 또는 상품명)", key="res_search_tab2")
+
+        # ⚙️ 데이터 필터링 로직 시작 ㅋ
+        f_df = df_r.copy()
+        f_df['날짜'] = pd.to_datetime(f_df['날짜']).dt.date
+
         if f_type == "오늘": 
             f_df = f_df[f_df['날짜'] == today]
         elif f_type == "이번 주": 
             # 💡 이번 주 월요일부터 일요일까지 계산 ㅋ
-            start_of_week = today - timedelta(days=today.weekday()) # 월요일
-            end_of_week = start_of_week + timedelta(days=6)         # 일요일
+            start_of_week = today - timedelta(days=today.weekday())
+            end_of_week = start_of_week + timedelta(days=6)
             f_df = f_df[(f_df['날짜'] >= start_of_week) & (f_df['날짜'] <= end_of_week)]
         elif f_type == "이번 달": 
-            # 💡 이번 달 1일부터 마지막 날까지 딱 맞춰서 필터링! ㅋ
+            # 💡 당월 1일부터 마지막 날까지 계산 ㅋ
             first_day = today.replace(day=1)
             last_day = today.replace(day=py_calendar.monthrange(today.year, today.month)[1])
             f_df = f_df[(f_df['날짜'] >= first_day) & (f_df['날짜'] <= last_day)]
-        if search: f_df = f_df[f_df['성함'].str.contains(search, na=False) | f_df['상품명'].str.contains(search, na=False)]
+            
+        # 검색어 필터 ㅋ
+        if search:
+            f_df = f_df[f_df['성함'].str.contains(search, na=False) | f_df['상품명'].str.contains(search, na=False)]
+        
+        # 💡 [핵심] 정렬: 날짜 오름차순 -> 같은 날짜면 시간 오름차순! ㅋ
         f_df = f_df.sort_values(by=['날짜', '시간'], ascending=[True, True])
-        sel_res = st.dataframe(f_df, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row")
-        if sel_res.selection.rows:
-            row = f_df.iloc[sel_res.selection.rows[0]]; b1, b2, _ = st.columns([1, 1, 3])
-            if b1.button("✏️ 수정", key="res_edit"): edit_res_modal(row)
-            if b2.button("🗑️ 삭제", key="res_del", type="primary"):
-                if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": str(row['날짜']), "time": row['시간']}): st.cache_data.clear(); st.rerun()
-    else: st.info("내역 없음")
+
+        st.divider()
+
+        # 2. 결과 출력 ㅋ
+        if not f_df.empty:
+            st.write(f"✅ **{f_type}** 예약 내역 (총 {len(f_df)}건)")
+            # 한 줄 선택 시 수정/삭제 버튼 활성화 ㅋ
+            sel_res = st.dataframe(
+                f_df, 
+                use_container_width=True, 
+                hide_index=True, 
+                on_select="rerun", 
+                selection_mode="single-row",
+                key="res_table_final"
+            )
+
+            # 3. 선택 행에 대한 액션 (수정/삭제) ㅋ
+            if sel_res.selection.rows:
+                row = f_df.iloc[sel_res.selection.rows[0]]
+                st.markdown(f"**📍 선택됨:** `{row['날짜']} {row['시간']}` | **{row['성함']}** ({row['상품명']})")
+                
+                b1, b2, _ = st.columns([1, 1, 3])
+                if b1.button("✏️ 예약 수정", key="btn_edit_res", use_container_width=True):
+                    edit_res_modal(row)
+                if b2.button("🗑️ 즉시 삭제", key="btn_del_res", type="primary", use_container_width=True):
+                    if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": str(row['날짜']), "time": row['시간']}):
+                        st.toast(f"{row['성함']} 님 예약 삭제 완료!", icon="🗑️")
+                        st.cache_data.clear()
+                        st.rerun()
+        else:
+            st.info(f"선택하신 **{f_type}** 기간에 해당하는 예약이 없습니다. ㅋ")
+            
+    else:
+        st.info("등록된 예약 내역이 없습니다. 달력에서 예약을 먼저 등록해 주세요! ㅋ")
+
 
 with tabs[2]:
     st.subheader("👥 회원 관리")
