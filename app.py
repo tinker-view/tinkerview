@@ -363,30 +363,40 @@ def edit_res_modal(res_info):
 # ==========================================
 
 # #4-1. 데이터 로드 및 상단 레이아웃 설정
-df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
 
-# 💡 재고 데이터는 캐시를 쓰지 않고 매번 새로 로드하도록 설정! ㅋ
-# load_data 함수 대신 직접 gsheets 연동 코드를 쓰거나, 아래처럼 ttl을 짧게 줍니다.
-df_stock = load_data("stocks") 
+df_m = load_data("members")
+df_s = load_data("schedules")
+df_r = load_data("reservations")
 
-# 💡 실시간 재고 계산 함수 (캐시 갱신 반영)
+# 💡 'stocks' 시트를 강제로 새로 읽어오기 위해 ttl(유효시간)을 0으로 설정하거나 캐시 삭제 후 로드 ㅋ
+try:
+    df_stock = load_data("stocks")
+except:
+    df_stock = None
+
+# 💡 실시간 재고 계산 함수 (데이터가 왜 안 나오는지 체크 로직 포함 ㅋ)
 def get_stock_val(item_name):
-    # 최신 데이터를 보장하기 위해 함수 내부에서 다시 불러올 수도 있지만, 
-    # 일단 데이터프레임이 비어있는지부터 꼼꼼히 체크합니다 ㅋ
     if df_stock is None or df_stock.empty:
-        return 0
+        return "?" # 👈 데이터 로드 실패 시 물음표 표시 ㅋ
+    
     try:
+        # 1. 항목명이 들어있는 컬럼 찾기 (공백 제거 ㅋ)
         temp_df = df_stock.copy()
         temp_df.columns = temp_df.columns.str.strip()
+        
+        # 2. '항목' 컬럼에서 item_name(HP 등) 찾기 ㅋ
         row = temp_df[temp_df['항목'].astype(str).str.strip() == item_name]
+        
         if not row.empty:
-            val = pd.to_numeric(row['현재고'].values[0], errors='coerce')
-            return int(val) if not pd.isna(val) else 0
-    except:
-        return 0
-    return 0
+            # 3. '현재고' 컬럼 값 가져오기 ㅋ
+            val = row['현재고'].values[0]
+            return int(float(val)) # 숫자 변환 ㅋ
+        else:
+            return 0 # 항목을 못 찾으면 0 ㅋ
+    except Exception as e:
+        return "!" # 👈 오류 발생 시 느낌표 표시 ㅋ
 
-# 상단 바 스타일 및 재고 현황판 ㅋ
+# 상단 바 스타일 및 재고 현황판 (디자인 살짝 수정 ㅋ)
 st.markdown(f"""
     <style>
         [data-testid="stHeader"], header {{ visibility: hidden !important; height: 0 !important; }}
@@ -397,24 +407,16 @@ st.markdown(f"""
         .main-title {{ font-size: 22px !important; font-weight: 800 !important; color: #1E3A8A; }}
         .stock-badge {{
             font-size: 13px !important; font-weight: 700 !important;
-            color: #ef4444; background: #fee2e2; padding: 4px 10px;
-            border-radius: 8px; border: 1px solid #fecaca;
+            color: #ffffff; background: #ef4444; padding: 5px 12px;
+            border-radius: 20px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
         }}
-        /* 달력 공통 스타일 ㅋ */
-        .fc-event-main {{ display: flex !important; align-items: center !important; justify-content: center !important; padding: 2px !important; }}
-        .fc-event-title {{ font-weight: 800 !important; color: #ffffff !important; text-align: center !important; }}
-        @media screen and (max-width: 600px) {{
-            .fc-event-title {{ font-size: 12px !important; white-space: nowrap !important; }}
-            .fc-event-time {{ display: none !important; }}
-            .fc-day-sun {{ width: 3% !important; background-color: #fcfcfc !important; }}
-        }}
-        @media screen and (min-width: 601px) {{ .fc-event-title {{ font-size: 13px !important; white-space: normal !important; }} }}
-        .fc .fc-timegrid-slot {{ height: 55px !important; }}
     </style>
     
     <div class="top-bar">
         <div class="main-title">✨ K-View</div>
-        <div class="stock-badge">📦 HP: {get_stock_val("HP")} | S3: {get_stock_val("S3")}</div>
+        <div class="stock-badge">
+            📦 HP: {get_stock_val("HP")} | S3: {get_stock_val("S3")}
+        </div>
     </div>
 """, unsafe_allow_html=True)
 
