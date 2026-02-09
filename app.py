@@ -403,36 +403,53 @@ st.markdown("""
 # #4. 메인 탭 UI 및 대시보드 영역
 # ==========================================
 
-# #4-1. 데이터 초기 로드 및 공통 스타일 (K-View 타이틀 제거 완료! ㅋ)
+# #4-1. 데이터 로드 및 스타일 (반응형 최적화) ㅋ
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
+
+# 💡 [핵심] 접속 기기 판별 (모바일 여부 체크) ㅋ
+is_mobile = st.query_params.get("auth") == "true" # 앱(유니티) 접속은 보통 쿼리스트링을 활용하므로 ㅋ
+# 만약 위 조건이 안 맞으면 간단하게 화면 너비를 기준으로 처리하는 CSS를 아래에 넣었습니다 ㅋ
 
 st.markdown("""
     <style>
-        /* 기본적으로 PC에서는 모든 정보를 다 보여줍니다 ㅋ */
-        .fc-event-title { 
-            white-space: normal !important; /* PC에선 줄바꿈 허용 ㅋ */
-            font-size: 13px !important;
-            line-height: 1.3 !important;
+        /* 상단 헤더 박멸 ㅋ */
+        [data-testid="stHeader"], header { visibility: hidden !important; height: 0 !important; }
+        
+        /* 왼쪽 시간 칸 다이어트 ㅋ */
+        .fc .fc-timegrid-axis-cushion, .fc .fc-timegrid-slot-label-cushion {
+            font-size: 11px !important; width: 35px !important; text-align: center !important;
         }
 
-        /* 📱 모바일(화면 폭 600px 이하)일 때만 다시 이름 위주로 축소! ㅋ */
+        /* 공통 이벤트 스타일 ㅋ */
+        .fc-event-main { display: flex !important; align-items: center !important; justify-content: center !important; padding: 2px !important; }
+        .fc-event-title { font-weight: 800 !important; color: #ffffff !important; text-align: center !important; }
+
+        /* 📱 모바일 전용 스타일 (너비 600px 이하) ㅋ */
         @media screen and (max-width: 600px) {
-            .fc-event-time { display: none !important; } /* 시간 숨김 */
             .fc-event-title { 
-                font-size: 11px !important; 
-                white-space: nowrap !important; /* 모바일에선 한 줄 유지 ㅋ */
-                text-align: center !important;
+                font-size: 12px !important; 
+                white-space: nowrap !important; /* 모바일에선 무조건 한 줄! ㅋ */
             }
-            /* 상품명(괄호 부분)을 모바일에서만 숨기고 싶다면 추가적인 로직이 필요하지만, 
-               일단은 한 줄로 깔끔하게 나오도록 세팅했습니다 ㅋ */
+            .fc-event-time { display: none !important; } /* 모바일에서 시간 숨김 ㅋ */
+            .fc-day-sun { width: 3% !important; background-color: #fcfcfc !important; } /* 일요일 좁게 ㅋ */
         }
+
+        /* 💻 PC 전용 스타일 (너비 601px 이상) ㅋ */
+        @media screen and (min-width: 601px) {
+            .fc-event-title { 
+                font-size: 13px !important; 
+                white-space: normal !important; /* PC에선 줄바꿈 허용 ㅋ */
+            }
+        }
+        
+        .fc .fc-timegrid-slot { height: 55px !important; }
     </style>
 """, unsafe_allow_html=True)
 
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (PC/모바일 반응형 레이아웃) ㅋ
+# #4-2. [탭 1] 스케줄 달력 뷰 (기기별 제목 차별화) ㅋ
 with tabs[0]:
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
@@ -444,16 +461,14 @@ with tabs[0]:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
                 
-                # 💡 [반응형 로직] PC와 모바일을 제목 구성으로 구분 ㅋ
-                # PC용 긴 제목: "14:30 이성희 (HP)"
-                pc_title = f"{res_time} {r['성함']} ({r['상품명']})"
-                # 모바일용 짧은 제목: "이성희"
-                mobile_title = f"{r['성함']}"
+                # 💡 [반응형 데이터 구성] ㅋ
+                # PC에서는 정보 가득, 모바일(앱) 환경으로 추정되면 이름만!
+                # 팁: 앱에서 접속할 때 특정 URL 파라미터를 주면 더 정확하지만, 
+                # 일단은 PC용 전체 텍스트를 넣고 CSS에서 모바일일 때 시간을 숨기도록 세팅했습니다. ㅋ
+                display_title = f"{r['성함']} ({r['상품명']})"
                 
-                # 우선 PC용으로 데이터를 넣고, CSS에서 모바일일 때만 조절하게 만듭니다 ㅋ
                 events.append({
-                    "title": pc_title, 
-                    "extendedProps": {"mobile_title": mobile_title}, # 모바일용 제목 별도 보관 ㅋ
+                    "title": display_title, 
                     "start": f"{res_date}T{res_time}:00",
                     "backgroundColor": "#3D5AFE", 
                     "borderColor": "#3D5AFE"
@@ -462,31 +477,27 @@ with tabs[0]:
 
     calendar_options = {
         "headerToolbar": {
-            "left": "prev,next", 
-            "center": "title", 
-            "right": "dayGridMonth,timeGridWeek"
+            "left": "prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek"
         },
         "initialView": "timeGridWeek", 
-        "selectable": True, 
-        "locale": "ko",
-        "allDaySlot": False,
-        "slotMinTime": "10:00:00",
-        "slotMaxTime": "19:00:00",
-        "height": "auto",
-        "expandRows": True,
+        "selectable": True, "locale": "ko", "allDaySlot": False,
+        "slotMinTime": "10:00:00", "slotMaxTime": "19:00:00",
+        "height": "auto", "expandRows": True,
         "slotLabelFormat": { "hour": "2-digit", "minute": "2-digit", "hour12": False },
+        
+        # 💡 [대장님 요청] 뷰별 헤더 차별화 다시 적용! ㅋ
         "views": {
             "timeGridWeek": { "dayHeaderFormat": { "weekday": "short", "day": "numeric" } },
             "dayGridMonth": { "dayHeaderFormat": { "weekday": "short" } }
         },
-        "displayEventTime": True, # 💡 PC에서는 시간을 표시하기 위해 True로 변경 ㅋ
+        
+        "displayEventTime": True, # PC에서는 시간을 보여줘야 하니까 True ㅋ (모바일은 CSS로 숨김 ㅋ)
         "firstDay": 1,
-        "hiddenDays": [0],
+        "hiddenDays": [0], # 일요일 삭제 ㅋ
     }
 
-    state = calendar(events=events, options=calendar_options, key="kview_responsive_v12")
-    
-    
+    state = calendar(events=events, options=calendar_options, key="kview_perfect_responsive_v13")
+
     # (팝업 로직)
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
