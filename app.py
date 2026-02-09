@@ -204,7 +204,7 @@ with tabs[1]:
         if f_type == "오늘": f_df = f_df[f_df['날짜'] == today]
         elif f_type == "이번 주": f_df = f_df[(f_df['날짜'] >= today) & (f_df['날짜'] <= today + timedelta(days=7))]
         elif f_type == "이번 달": 
-            # 💡 이번 달 1일부터 마지막 날까지 딱 맞춰서 필터링! ㅋ
+            # 💡 이번 달 1일과 마지막 날짜를 계산해서 당월 데이터만 추출! ㅋ
             first_day = today.replace(day=1)
             last_day = today.replace(day=py_calendar.monthrange(today.year, today.month)[1])
             f_df = f_df[(f_df['날짜'] >= first_day) & (f_df['날짜'] <= last_day)]
