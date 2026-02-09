@@ -363,12 +363,85 @@ def edit_res_modal(res_info):
 # ==========================================
 
 
-# #4-1. 데이터 초기 로드 및 공통 스타일 적용
+# #4-1. 공통 스타일 및 모바일 최적화 CSS
+st.markdown("""
+    <style>
+        /* 메인 타이틀 */
+        .main-title { font-size: 26px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -20px; margin-bottom: 15px; }
+        
+        /* 1. 시간 칸 줄바꿈 및 너비 축소 */
+        .fc .fc-timegrid-slot-label-cushion {
+            display: block !important;
+            line-height: 1.2 !important;
+            font-size: 11px !important; /* 시간 글자 크기 살짝 줄임 */
+            text-align: center !important;
+        }
+        
+        /* 2. 이벤트 글자 강제 줄바꿈 (이름, 상품명 다 보이게) */
+        .fc-event-main-frame { flex-direction: column !important; }
+        .fc-event-title { 
+            white-space: normal !important; 
+            overflow: visible !important; 
+            font-size: 11px !important; 
+            line-height: 1.1 !important;
+            font-weight: 500 !important;
+        }
+        
+        /* 3. 일요일 너비 좁히기 (평일 집중) */
+        .fc-day-sun { width: 8% !important; background-color: #f8f9fa; }
+        .fc-day-mon, .fc-day-tue, .fc-day-wed, .fc-day-thu, .fc-day-fri, .fc-day-sat { width: 15.3% !important; }
+        
+        /* 4. 모바일 터치 영역 확보를 위해 높이 조절 */
+        .fc .fc-timegrid-slot { height: 50px !important; }
+    </style>
+    <div class="main-title">✨ K-View</div>
+""", unsafe_allow_html=True)
+
+
+
+# ==========================================
+# #4. 메인 탭 UI 및 대시보드 영역
+# ==========================================
+
+# #4-1. 데이터 초기 로드 및 공통 스타일 적용 (모바일 최적화 CSS 포함) ㅋ
 df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
 
 st.markdown("""
     <style>
-        .main-title { font-size: 26px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -20px; margin-bottom: 15px; display: flex; align-items: center; }
+        /* 메인 타이틀 스타일 */
+        .main-title { font-size: 26px !important; font-weight: 800 !important; color: #1E3A8A; margin-top: -20px; margin-bottom: 15px; }
+        
+        /* 1. 시간 표시 칸(왼쪽) 너비 줄이고 줄바꿈 처리 ㅋ */
+        .fc .fc-timegrid-slot-label-cushion {
+            display: block !important;
+            line-height: 1.2 !important;
+            font-size: 10px !important;
+            text-align: center !important;
+            white-space: pre-line !important; /* 오전/10시 줄바꿈 허용 */
+        }
+        .fc .fc-timegrid-axis-cushion { width: 40px !important; } /* 시간칸 가로폭 고정 ㅋ */
+
+        /* 2. 이벤트 내부 글자 줄바꿈 (이름, 상품명 다 보이게) ㅋ */
+        .fc-event-main { padding: 2px !important; }
+        .fc-event-main-frame { flex-direction: column !important; }
+        .fc-event-title { 
+            white-space: normal !important; 
+            overflow: visible !important; 
+            font-size: 11px !important; 
+            line-height: 1.2 !important;
+            font-weight: 600 !important;
+            color: #ffffff !important;
+        }
+
+        /* 3. 요일별 너비 조절 (일요일은 좁게, 평일은 넓게!) ㅋ */
+        .fc-col-header-cell.fc-day-sun { width: 7% !important; background-color: #fff1f0; } /* 일요일 ㅋ */
+        .fc-col-header-cell.fc-day-sat { background-color: #f0f5ff; } /* 토요일은 살짝 푸르게 ㅋ */
+        
+        /* 4. 주간 뷰에서 시간 칸 높이 조절 (터치하기 편하게 ㅋ) */
+        .fc .fc-timegrid-slot { height: 60px !important; border-bottom: 1px sexy #eee !important; }
+        
+        /* 5. 월간 뷰 날짜 숫자 크기 조절 */
+        .fc .fc-daygrid-day-number { font-size: 12px !important; padding: 4px !important; }
     </style>
     <div class="main-title">✨ K-View</div>
 """, unsafe_allow_html=True)
@@ -376,8 +449,7 @@ st.markdown("""
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
-
-# #4-2. [탭 1] 스케줄 달력 뷰 (레이아웃 및 시간 최적화 버전) ㅋ
+# #4-2. [탭 1] 스케줄 달력 뷰 (모바일 최적화 및 레이아웃 수정) ㅋ
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
     
@@ -390,45 +462,50 @@ with tabs[0]:
             try:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
-                hh, mm = (res_time.split(":") + ["00"])[:2]
+                
+                # 💡 월간/주간 모두에서 [시간 이름 상품명]이 다 보이도록 구성 ㅋ
+                display_title = f"{res_time}\n{r['성함']}\n{r['상품명']}"
+                
                 events.append({
-                    "title": f"{r['성함']} ({r['상품명']})", 
-                    "start": f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00",
-                    "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"
+                    "title": display_title, 
+                    "start": f"{res_date}T{res_time}:00",
+                    "backgroundColor": "#3D5AFE", 
+                    "borderColor": "#3D5AFE",
+                    "textColor": "#ffffff"
                 })
             except: continue
 
-    # 💡 [핵심] 달력 옵션 최적화! ㅋ
+    # 💡 대장님이 원하시는 레이아웃 옵션 총집합! ㅋ
     calendar_options = {
         "headerToolbar": {
             "left": "prev,next today", 
             "center": "title", 
-            "right": "dayGridMonth,timeGridWeek" # 월, 주간 보기만 유지 ㅋ
+            "right": "dayGridMonth,timeGridWeek"
         },
         "initialView": "dayGridMonth", 
         "selectable": True, 
         "locale": "ko",
-        "allDaySlot": False,             # 상단 '종일' 칸 제거해서 공간 확보 ㅋ
-        "slotMinTime": "10:00:00",       # 시작 시간: 오전 10시
-        "slotMaxTime": "19:00:00",       # 종료 시간: 오후 7시 (6시까지 꽉 차게 보이게 ㅋ)
-        "slotDuration": "00:30:00",      # 30분 단위 눈금
-        "snapDuration": "00:15:00",      # 예약 시 15분 단위로 자석처럼 붙게 ㅋ
-        "height": "auto",                # 하단 빈 공간 없이 내용에 맞춰 자동 조절!
-        "expandRows": True,              # 주간 보기에서 줄 높이를 큼직하게 늘림 ㅋ
-        "contentHeight": "auto",         # 내부 높이도 자동!
-        "handleWindowResize": True,      # 앱 화면 크기에 맞춰 반응 ㅋ
+        "allDaySlot": False,
+        "slotMinTime": "10:00:00",       # 시작: 오전 10시
+        "slotMaxTime": "19:00:00",       # 종료: 오후 7시
+        "height": "auto",
+        "expandRows": True,
+        # 💡 시간 표시 형식을 [오전/오후\n10시] 처럼 보이게 줄바꿈 설정 ㅋ
+        "slotLabelFormat": {
+            "hour": "numeric",
+            "minute": "2-digit",
+            "omitZeroMinute": False,
+            "meridiem": "narrow", # '오전/오후'를 '오' 한글자로 표시하거나 짧게 ㅋ
+            "hour12": True
+        },
+        "dayMaxEvents": 3,               # 월간 뷰에서 일정 너무 많으면 +더보기 표시 ㅋ
+        "firstDay": 1,                   # 월요일부터 시작 (선택 사항, 일요일부터면 0 ㅋ)
     }
 
-    # 달력 위젯 실행
-    state = calendar(
-        events=events, 
-        options=calendar_options, 
-        key="cal_v_final_stable_0209_v1" # 키값 살짝 변경 ㅋ
-    )
+    state = calendar(events=events, options=calendar_options, key="kview_mobile_cal_v3")
 
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
-        # 주간 보기에서 특정 시간을 클릭했을 때만 팝업 (00:00:00이 아닌 경우)
         if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
             if st.session_state.clicked_res_info != raw_date:
                 st.session_state.clicked_res_info = raw_date
@@ -436,13 +513,14 @@ with tabs[0]:
                 st.rerun()
         else:
             st.session_state.show_res_modal = False
-            st.toast("예약은 '주간' 탭에서 원하는 시간을 클릭해 주세요! 📅", icon="💡")
+            st.toast("예약은 '주간' 탭에서 시간을 클릭해 주세요! 📅", icon="💡")
     
     elif state.get("callback") and state.get("callback") != "dateClick":
         st.session_state.show_res_modal = False
 
     if st.session_state.show_res_modal and st.session_state.clicked_res_info:
         add_res_modal(st.session_state.clicked_res_info, df_m)
+        
 
 
 # #4-3. [탭 2] 예약 내역 관리 (필터, 정렬, 수정, 삭제)
