@@ -377,15 +377,13 @@ tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (팝업 무한 호출 방지)
+# #4-2. [탭 1] 스케줄 달력 뷰 (레이아웃 및 시간 최적화 버전) ㅋ
 with tabs[0]:
     st.subheader("📅 스케줄 달력")
     
-    # 세션 상태 변수 안전하게 초기화 ㅋ
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
 
-    # (이벤트 데이터 생성 로직 동일)
     events = []
     if not df_r.empty:
         for _, r in df_r.iterrows():
@@ -394,36 +392,55 @@ with tabs[0]:
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
                 hh, mm = (res_time.split(":") + ["00"])[:2]
                 events.append({
-                    "title": f"{r['성함']} ({r['상품명']})", "start": f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00",
+                    "title": f"{r['성함']} ({r['상품명']})", 
+                    "start": f"{res_date}T{hh.zfill(2)}:{mm.zfill(2)}:00",
                     "backgroundColor": "#3D5AFE", "borderColor": "#3D5AFE"
                 })
             except: continue
 
-    # 달력 위젯
-    state = calendar(events=events, options={
-        "headerToolbar": {"left": "prev,next today", "center": "title", "right": "dayGridMonth,timeGridWeek"},
-        "initialView": "dayGridMonth", "selectable": True, "locale": "ko"
-    }, key="cal_v_final_stable_0205_v2")
+    # 💡 [핵심] 달력 옵션 최적화! ㅋ
+    calendar_options = {
+        "headerToolbar": {
+            "left": "prev,next today", 
+            "center": "title", 
+            "right": "dayGridMonth,timeGridWeek" # 월, 주간 보기만 유지 ㅋ
+        },
+        "initialView": "dayGridMonth", 
+        "selectable": True, 
+        "locale": "ko",
+        "allDaySlot": False,             # 상단 '종일' 칸 제거해서 공간 확보 ㅋ
+        "slotMinTime": "10:00:00",       # 시작 시간: 오전 10시
+        "slotMaxTime": "19:00:00",       # 종료 시간: 오후 7시 (6시까지 꽉 차게 보이게 ㅋ)
+        "slotDuration": "00:30:00",      # 30분 단위 눈금
+        "snapDuration": "00:15:00",      # 예약 시 15분 단위로 자석처럼 붙게 ㅋ
+        "height": "auto",                # 하단 빈 공간 없이 내용에 맞춰 자동 조절!
+        "expandRows": True,              # 주간 보기에서 줄 높이를 큼직하게 늘림 ㅋ
+        "contentHeight": "auto",         # 내부 높이도 자동!
+        "handleWindowResize": True,      # 앱 화면 크기에 맞춰 반응 ㅋ
+    }
 
-    # 💡 [보완] 달력에서 '시간 클릭'이 아닌 다른 동작(넘기기 등)을 하면 스위치를 끕니다 ㅋ
+    # 달력 위젯 실행
+    state = calendar(
+        events=events, 
+        options=calendar_options, 
+        key="cal_v_final_stable_0209_v1" # 키값 살짝 변경 ㅋ
+    )
+
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
-        # 00:00:00 필터 유지 ㅋ
+        # 주간 보기에서 특정 시간을 클릭했을 때만 팝업 (00:00:00이 아닌 경우)
         if "T" in raw_date and raw_date.split("T")[1][:8] != "00:00:00":
             if st.session_state.clicked_res_info != raw_date:
                 st.session_state.clicked_res_info = raw_date
                 st.session_state.show_res_modal = True
                 st.rerun()
         else:
-            # 시간을 누른 게 아니면(날짜만 눌렀거나 등) 스위치 OFF ㅋ
             st.session_state.show_res_modal = False
-            st.toast("예약 등록은 '주간' 탭에서 시간을 클릭해 주세요!", icon="📅")
+            st.toast("예약은 '주간' 탭에서 원하는 시간을 클릭해 주세요! 📅", icon="💡")
     
-    # 💡 [중요] 달력의 다른 버튼(이전/다음 등)을 눌렀을 때 팝업이 뜨지 않게 방어 ㅋ
     elif state.get("callback") and state.get("callback") != "dateClick":
         st.session_state.show_res_modal = False
 
-    # 💡 팝업 강제 유지 (스위치가 확실히 ON일 때만!)
     if st.session_state.show_res_modal and st.session_state.clicked_res_info:
         add_res_modal(st.session_state.clicked_res_info, df_m)
 
