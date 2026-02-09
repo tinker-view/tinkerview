@@ -408,45 +408,23 @@ df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("rese
 
 st.markdown("""
     <style>
-        /* 1. 상단 중복 타이틀 박멸 및 헤더 여백 최적화 ㅋ */
-        [data-testid="stHeader"], header { visibility: hidden !important; height: 0 !important; }
-        
-        /* 2. 왼쪽 시간 칸 최소화 (10:00 형식 최적화) ㅋ */
-        .fc .fc-timegrid-axis-cushion,
-        .fc .fc-timegrid-slot-label-cushion {
-            font-size: 11px !important;
-            width: 32px !important; 
-            text-align: center !important;
-        }
-
-        /* 3. 헤더 폰트 및 요일 스타일 ㅋ */
-        .fc-col-header-cell-cushion { 
-            font-size: 13px !important; 
-            text-decoration: none !important; 
-            color: #333 !important;
-        }
-
-        /* 4. 이름 자동 맞춤 및 한 줄 유지 (주간 뷰 집중) ㅋ */
-        .fc-event-main { display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 2px !important; }
-        .fc-event-title-container { width: 100% !important; text-align: center !important; }
+        /* 기본적으로 PC에서는 모든 정보를 다 보여줍니다 ㅋ */
         .fc-event-title { 
-            display: inline-block !important;
+            white-space: normal !important; /* PC에선 줄바꿈 허용 ㅋ */
             font-size: 13px !important;
-            font-weight: 900 !important;
-            color: #ffffff !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            width: 100% !important;
+            line-height: 1.3 !important;
         }
-        
-        /* 5. 파란 박스 내부 시간 글자 완전 제거 ㅋ */
-        .fc-event-time { display: none !important; }
 
-        /* 6. 시간 칸 높이 조절 */
-        .fc .fc-timegrid-slot { height: 55px !important; }
-        
+        /* 📱 모바일(화면 폭 600px 이하)일 때만 다시 이름 위주로 축소! ㅋ */
         @media screen and (max-width: 600px) {
-            .fc-event-title { font-size: 11px !important; }
+            .fc-event-time { display: none !important; } /* 시간 숨김 */
+            .fc-event-title { 
+                font-size: 11px !important; 
+                white-space: nowrap !important; /* 모바일에선 한 줄 유지 ㅋ */
+                text-align: center !important;
+            }
+            /* 상품명(괄호 부분)을 모바일에서만 숨기고 싶다면 추가적인 로직이 필요하지만, 
+               일단은 한 줄로 깔끔하게 나오도록 세팅했습니다 ㅋ */
         }
     </style>
 """, unsafe_allow_html=True)
@@ -454,7 +432,7 @@ st.markdown("""
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출"])
 
 
-# #4-2. [탭 1] 스케줄 달력 뷰 (월간/주간 헤더 차별화) ㅋ
+# #4-2. [탭 1] 스케줄 달력 뷰 (PC/모바일 반응형 레이아웃) ㅋ
 with tabs[0]:
     if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
     if "clicked_res_info" not in st.session_state: st.session_state.clicked_res_info = None
@@ -466,11 +444,16 @@ with tabs[0]:
                 res_date = str(r.get('날짜', '')).replace("'", "").replace(".", "-").strip()
                 res_time = re.sub(r'[^0-9:]', '', str(r.get('시간', '10:00')))
                 
-                # 💡 성함만 표시하도록 고정 ㅋ
-                display_title = f"{r['성함']}"
+                # 💡 [반응형 로직] PC와 모바일을 제목 구성으로 구분 ㅋ
+                # PC용 긴 제목: "14:30 이성희 (HP)"
+                pc_title = f"{res_time} {r['성함']} ({r['상품명']})"
+                # 모바일용 짧은 제목: "이성희"
+                mobile_title = f"{r['성함']}"
                 
+                # 우선 PC용으로 데이터를 넣고, CSS에서 모바일일 때만 조절하게 만듭니다 ㅋ
                 events.append({
-                    "title": display_title, 
+                    "title": pc_title, 
+                    "extendedProps": {"mobile_title": mobile_title}, # 모바일용 제목 별도 보관 ㅋ
                     "start": f"{res_date}T{res_time}:00",
                     "backgroundColor": "#3D5AFE", 
                     "borderColor": "#3D5AFE"
@@ -492,24 +475,18 @@ with tabs[0]:
         "height": "auto",
         "expandRows": True,
         "slotLabelFormat": { "hour": "2-digit", "minute": "2-digit", "hour12": False },
-        
-        # 💡 [핵심] 주간 뷰(timeGridWeek)와 월간 뷰(dayGridMonth) 헤더를 다르게 설정! ㅋ
         "views": {
-            "timeGridWeek": {
-                "dayHeaderFormat": { "weekday": "short", "day": "numeric" } # 주간: 월 9
-            },
-            "dayGridMonth": {
-                "dayHeaderFormat": { "weekday": "short" } # 월간: 월 (날짜 없음) ㅋ
-            }
+            "timeGridWeek": { "dayHeaderFormat": { "weekday": "short", "day": "numeric" } },
+            "dayGridMonth": { "dayHeaderFormat": { "weekday": "short" } }
         },
-        
-        "displayEventTime": False,
+        "displayEventTime": True, # 💡 PC에서는 시간을 표시하기 위해 True로 변경 ㅋ
         "firstDay": 1,
-        "hiddenDays": [0], # 일요일 제거 ㅋ
+        "hiddenDays": [0],
     }
 
-    state = calendar(events=events, options=calendar_options, key="kview_header_diff_v11")
-
+    state = calendar(events=events, options=calendar_options, key="kview_responsive_v12")
+    
+    
     # (팝업 로직)
     if state.get("callback") == "dateClick":
         raw_date = str(state["dateClick"]["date"])
