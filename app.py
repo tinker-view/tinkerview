@@ -364,37 +364,30 @@ def edit_res_modal(res_info):
 
 # #4-1. 데이터 로드 및 상단 레이아웃 설정
 
-df_m = load_data("members")
-df_s = load_data("schedules")
-df_r = load_data("reservations")
-
-# 💡 'stocks' 시트를 강제로 새로 읽어오기 위해 ttl(유효시간)을 0으로 설정하거나 캐시 삭제 후 로드 ㅋ
 try:
-    df_stock = load_data("stocks")
+    df_m, df_s, df_r = load_data("members"), load_data("schedules"), load_data("reservations")
+    
+    # 💡 시트 이름 뒤에 공백이 있어도 일단 다 긁어오도록 시도 ㅋ
+    df_stock = load_data("stocks") 
+    if df_stock is None or df_stock.empty:
+        # 💡 최후의 수단: 공백이 포함된 이름으로도 시도해봅니다 ㅋ
+        df_stock = load_data("stocks ") 
 except:
     df_stock = None
 
-# 💡 실시간 재고 계산 함수 (데이터가 왜 안 나오는지 체크 로직 포함 ㅋ)
+# 실시간 재고 계산 함수 ㅋ
 def get_stock_val(item_name):
-    if df_stock is None or df_stock.empty:
-        return "?" # 👈 데이터 로드 실패 시 물음표 표시 ㅋ
-    
+    if df_stock is None or df_stock.empty: return "?"
     try:
-        # 1. 항목명이 들어있는 컬럼 찾기 (공백 제거 ㅋ)
         temp_df = df_stock.copy()
+        # 헤더 공백 제거 ㅋ
         temp_df.columns = temp_df.columns.str.strip()
-        
-        # 2. '항목' 컬럼에서 item_name(HP 등) 찾기 ㅋ
+        # 항목 데이터 공백 제거 후 비교 ㅋ
         row = temp_df[temp_df['항목'].astype(str).str.strip() == item_name]
-        
         if not row.empty:
-            # 3. '현재고' 컬럼 값 가져오기 ㅋ
-            val = row['현재고'].values[0]
-            return int(float(val)) # 숫자 변환 ㅋ
-        else:
-            return 0 # 항목을 못 찾으면 0 ㅋ
-    except Exception as e:
-        return "!" # 👈 오류 발생 시 느낌표 표시 ㅋ
+            return int(float(row['현재고'].values[0]))
+    except: return "!"
+    return 0
 
 # 상단 바 스타일 및 재고 현황판 (디자인 살짝 수정 ㅋ)
 st.markdown(f"""
