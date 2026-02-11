@@ -354,77 +354,90 @@ with tabs[1]:
                 if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": str(row['날짜']), "time": row['시간']}): st.cache_data.clear(); st.rerun()
 
 
-# #6-3. [탭 3] 회원 관리 (페이징 처리 및 원본 로직 유지) ㅋ
+# #6-3. [탭 3] 회원 관리 (게시판형 << < 1 2 3 > >> 버튼 추가) ㅋ
 with tabs[2]:
-    st.session_state.show_res_modal = False # 타 탭 진입 시 예약 팝업 강제 종료 ㅋ
+    st.session_state.show_res_modal = False
     st.subheader("👥 회원 관리")
 
-
-    # 💡 신규 등록 버튼 (원본 로직 유지) ㅋ
+    # 💡 신규 등록 버튼
     if st.button("➕ 새 회원 등록", use_container_width=True): 
         st.session_state.clicked_date = None
         add_member_modal()
 
-
     st.divider()
 
-
-    # 💡 검색 및 페이징 설정 바 ㅋ
+    # 🔍 검색 및 표시 개수 설정
     search_col, size_col = st.columns([3, 1])
-    s_m = search_col.text_input("👤 검색", key="mem_search_tab3") # 대장님 원본 키 유지 ㅋ
+    s_m = search_col.text_input("👤 검색", key="mem_search_tab3")
     
-    # 📄 페이지당 표시 개수 선택 UI 추가 ㅋ
     page_size_options = [10, 20, 50, "전체"]
     selected_size = size_col.selectbox("📄 표시 개수", options=page_size_options, index=0)
-
 
     if not df_m.empty:
         df_disp = df_m.copy()
         
-        # 1. 검색 로직 (대장님 원본 로직 유지) ㅋ
+        # 1. 검색 로직
         if s_m:
             df_disp = df_disp[df_disp['성함'].str.contains(s_m, na=False) | df_disp['연락처'].str.contains(s_m, na=False)]
         
         df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
-
-
-        # 2. 페이징 계산 로직 추가 ㅋ
         total_rows = len(df_disp)
+
+        # 2. 페이징 계산
+        if "curr_page" not in st.session_state: st.session_state.curr_page = 1
         
         if selected_size == "전체":
             display_df = df_disp
         else:
             page_size = int(selected_size)
-            total_pages = (total_rows // page_size) + (1 if total_rows % page_size > 0 else 0)
+            total_pages = max((total_rows // page_size) + (1 if total_rows % page_size > 0 else 0), 1)
             
-            if total_pages > 1:
-                # 📖 페이지 이동 번호 입력창 ㅋ
-                curr_page = st.number_input(f"📖 페이지 (총 {total_pages}pg / {total_rows}명)", min_value=1, max_value=total_pages, value=1)
-                start_idx = (curr_page - 1) * page_size
-                end_idx = start_idx + page_size
-                display_df = df_disp.iloc[start_idx:end_idx]
-            else:
-                display_df = df_disp
+            # 페이지 범위를 벗어나지 않게 조정 ㅋ
+            if st.session_state.curr_page > total_pages: st.session_state.curr_page = total_pages
 
+            # 💡 [게시판형 버튼 레이아웃] ㅋ
+            st.write("") # 간격 조절
+            cols = st.columns([1, 1] + [0.5]*min(total_pages, 5) + [1, 1, 3]) # 버튼용 컬럼 배치
+            
+            # 처음으로(<<), 이전(<)
+            if cols[0].button("<<"): st.session_state.curr_page = 1; st.rerun()
+            if cols[1].button("<"): st.session_state.curr_page = max(st.session_state.curr_page - 1, 1); st.rerun()
 
-        # 3. 데이터프레임 출력 (대장님 설정 유지) ㅋ
+            # 숫자 버튼 (현재 페이지 기준 앞뒤로 최대 5개 표시) ㅋ
+            start_p = max(min(st.session_state.curr_page - 2, total_pages - 4), 1)
+            end_p = min(start_p + 4, total_pages)
+            
+            for idx, p_num in enumerate(range(start_p, end_p + 1)):
+                btn_type = "primary" if p_num == st.session_state.curr_page else "secondary"
+                if cols[idx+2].button(f"{p_num}", type=btn_type):
+                    st.session_state.curr_page = p_num
+                    st.rerun()
+
+            # 다음(>), 끝으로(>>)
+            if cols[-3].button(">"): st.session_state.curr_page = min(st.session_state.curr_page + 1, total_pages); st.rerun()
+            if cols[-2].button(">>"): st.session_state.curr_page = total_pages; st.rerun()
+            
+            # 현재 상태 표시 ㅋ
+            st.caption(f"현재 {st.session_state.curr_page} / {total_pages} 페이지 (총 {total_rows}명)")
+
+            start_idx = (st.session_state.curr_page - 1) * page_size
+            display_df = df_disp.iloc[start_idx : start_idx + page_size]
+
+        # 3. 데이터프레임 출력
         sel = st.dataframe(
             display_df, 
             use_container_width=True, 
             hide_index=True, 
             on_select="rerun", 
             selection_mode="single-row", 
-            key="mem_table_main_paging" # 키 중복 방지 ㅋ
+            key="mem_table_board_paging"
         )
 
-
-        # 4. 상세 정보 호출 (대장님 원본 로직 유지) ㅋ
+        # 4. 상세 정보 호출
         if sel.selection.rows:
-            st.session_state.show_res_modal = False # 상세 정보 뜰 때 예약 팝업 간섭 방지 ㅋ
+            st.session_state.show_res_modal = False
             m = display_df.iloc[sel.selection.rows[0]]
             show_detail(m, df_s[df_s['성함'] == m['성함']])
-
-
     else:
         st.info("등록된 회원 정보가 없습니다. ㅋ")
 
