@@ -127,18 +127,62 @@ def format_birth(b):
     c = re.sub(r'\D', '', str(b)); return f"{c[:4]}.{c[4:6]}.{c[6:]}" if len(c) == 8 else c
 
 
+# #4-2. [팝업] 신규 회원 등록 모달 (순번 자동+수동 입력) ㅋ
 @st.dialog("👤 새 회원 등록")
 def add_member_modal():
-    with st.form("add_member_form", clear_on_submit=True):
-        c1, c2 = st.columns(2); n_name, n_phone = c1.text_input("성함 (필수)"), c2.text_input("연락처")
-        c3, c4 = st.columns(2); n_birth, n_gender = c3.text_input("생년월일"), c4.selectbox("성별", ["남", "여"])
-        n_addr, n_coun = st.text_input("주소"), st.text_input("담당 상담사")
-        n_memo = st.text_area("비고(특이사항)")
-        if st.form_submit_button("✅ 회원 등록 완료"):
-            if n_name:
-                row = ["", n_name, n_phone, n_birth, n_gender, n_addr, datetime.now().strftime("%Y-%m-%d"), n_coun, n_memo]
-                if manage_gsheet("members", row, action="add"): st.cache_data.clear(); st.rerun()
+    # 💡 현재 회원 데이터에서 마지막 순번 찾기 ㅋ
+    df_m = load_data("members")
+    try:
+        # 숫자로 변환 가능한 것 중 최대값 찾기 ㅋ
+        last_no = pd.to_numeric(df_m['순번'], errors='coerce').max()
+        if pd.isna(last_no): last_no = 0
+    except:
+        last_no = 0
+    
+    next_no = int(last_no) + 1 # 자동 제안 번호 ㅋ
 
+
+    with st.form("add_member_form", clear_on_submit=True):
+        col_id, col_name = st.columns([1, 2])
+        # 💡 자동 계산된 번호를 기본값으로 넣되, 수정 가능하게 함 ㅋ
+        new_no = col_id.text_input("순번", value=str(next_no)) 
+        new_name = col_name.text_input("성함 (필수)")
+        
+        c1, c2 = st.columns(2)
+        new_phone = c1.text_input("연락처 (예: 01012345678)")
+        new_birth = c2.text_input("생년월일 (예: 19900101)")
+        
+        c3, c4 = st.columns(2)
+        new_gender = c3.selectbox("성별", ["남", "여"])
+        new_date = c4.date_input("최초가입일", value=datetime.now())
+        
+        new_addr = st.text_input("주소")
+        new_coun = st.text_input("담당 상담사")
+        new_memo = st.text_area("비고(특이사항)")
+        
+        if st.form_submit_button("✅ 회원 등록 완료"):
+            if not new_name:
+                st.error("성함을 입력해주세요!")
+            else:
+                row = [
+                    new_no,               
+                    new_name,             
+                    new_phone,            
+                    new_birth,            
+                    new_gender,           
+                    new_addr,             
+                    new_date.strftime("%Y-%m-%d"), 
+                    new_coun,             
+                    new_memo              
+                ]
+                
+                if manage_gsheet("members", row, action="add"):
+                    st.success(f"{new_name} 님이 {new_no}번으로 등록되었습니다!")
+                    st.cache_data.clear()
+                    st.rerun()
+
+
+                    
 
 @st.dialog("📅 새 예약 등록")
 def add_res_modal(clicked_date, m_list):
