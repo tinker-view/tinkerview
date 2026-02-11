@@ -280,8 +280,10 @@ with tabs[0]:
 
     # 💡 [이중 잠금] 달력 탭 안에 있을 때만 예약 팝업 실행 ㅋ
     if st.session_state.show_res_modal and st.session_state.get("clicked_date"):
-        add_res_modal(st.session_state.clicked_date, df_m)
+    st.session_state.show_res_modal = False # 👈 팝업창을 띄우자마자 스위치를 꺼버림!
+    add_res_modal(st.session_state.clicked_date, df_m)
 
+    
 
 # #6-2. [탭 2] 예약 내역 관리 ㅋ
 with tabs[1]:
