@@ -354,22 +354,81 @@ with tabs[1]:
                 if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": str(row['날짜']), "time": row['시간']}): st.cache_data.clear(); st.rerun()
 
 
-# #6-3. [탭 3] 회원 관리 ㅋ
+# #6-3. [탭 3] 회원 관리 (페이징 처리 및 원본 로직 유지) ㅋ
 with tabs[2]:
     st.session_state.show_res_modal = False # 타 탭 진입 시 예약 팝업 강제 종료 ㅋ
     st.subheader("👥 회원 관리")
+
+
+    # 💡 신규 등록 버튼 (원본 로직 유지) ㅋ
     if st.button("➕ 새 회원 등록", use_container_width=True): 
         st.session_state.clicked_date = None
         add_member_modal()
-    s_m = st.text_input("👤 검색", key="mem_search_tab3")
+
+
+    st.divider()
+
+
+    # 💡 검색 및 페이징 설정 바 ㅋ
+    search_col, size_col = st.columns([3, 1])
+    s_m = search_col.text_input("👤 검색", key="mem_search_tab3") # 대장님 원본 키 유지 ㅋ
+    
+    # 📄 페이지당 표시 개수 선택 UI 추가 ㅋ
+    page_size_options = [10, 20, 50, "전체"]
+    selected_size = size_col.selectbox("📄 표시 개수", options=page_size_options, index=0)
+
+
     if not df_m.empty:
         df_disp = df_m.copy()
-        if s_m: df_disp = df_disp[df_disp['성함'].str.contains(s_m, na=False) | df_disp['연락처'].str.contains(s_m, na=False)]
+        
+        # 1. 검색 로직 (대장님 원본 로직 유지) ㅋ
+        if s_m:
+            df_disp = df_disp[df_disp['성함'].str.contains(s_m, na=False) | df_disp['연락처'].str.contains(s_m, na=False)]
+        
         df_disp['연락처'] = df_disp['연락처'].apply(format_phone)
-        sel = st.dataframe(df_disp, use_container_width=True, hide_index=True, on_select="rerun", selection_mode="single-row", key="mem_table_main")
+
+
+        # 2. 페이징 계산 로직 추가 ㅋ
+        total_rows = len(df_disp)
+        
+        if selected_size == "전체":
+            display_df = df_disp
+        else:
+            page_size = int(selected_size)
+            total_pages = (total_rows // page_size) + (1 if total_rows % page_size > 0 else 0)
+            
+            if total_pages > 1:
+                # 📖 페이지 이동 번호 입력창 ㅋ
+                curr_page = st.number_input(f"📖 페이지 (총 {total_pages}pg / {total_rows}명)", min_value=1, max_value=total_pages, value=1)
+                start_idx = (curr_page - 1) * page_size
+                end_idx = start_idx + page_size
+                display_df = df_disp.iloc[start_idx:end_idx]
+            else:
+                display_df = df_disp
+
+
+        # 3. 데이터프레임 출력 (대장님 설정 유지) ㅋ
+        sel = st.dataframe(
+            display_df, 
+            use_container_width=True, 
+            hide_index=True, 
+            on_select="rerun", 
+            selection_mode="single-row", 
+            key="mem_table_main_paging" # 키 중복 방지 ㅋ
+        )
+
+
+        # 4. 상세 정보 호출 (대장님 원본 로직 유지) ㅋ
         if sel.selection.rows:
-            m = df_disp.iloc[sel.selection.rows[0]]
+            st.session_state.show_res_modal = False # 상세 정보 뜰 때 예약 팝업 간섭 방지 ㅋ
+            m = display_df.iloc[sel.selection.rows[0]]
             show_detail(m, df_s[df_s['성함'] == m['성함']])
+
+
+    else:
+        st.info("등록된 회원 정보가 없습니다. ㅋ")
+
+        
 
 
 # #6-4. [탭 4] 매출 통계 ㅋ
