@@ -75,29 +75,52 @@ def manage_gsheet(sheet, row=None, action="add", key=None, extra=None):
 # ==========================================
 
 
+# 💡 세션 상태 초기화 및 주소창 파라미터 체크 (새로고침 대응) ㅋ
 if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-    st.session_state.user_role = None
-    st.session_state.user_name = None
+    # 주소창에 auth=true가 있으면 자동으로 세션 복구 시도 ㅋ
+    if st.query_params.get("auth") == "true":
+        st.session_state.authenticated = True
+        st.session_state.user_name = st.query_params.get("u_name")
+        st.session_state.user_role = st.query_params.get("u_role")
+    else:
+        st.session_state.authenticated = False
+        st.session_state.user_role = None
+        st.session_state.user_name = None
 
 
-
+# 💡 미인증 상태일 때 로그인 폼 출력 ㅋ
 if not st.session_state.authenticated:
     st.title("🔐 K-View 멤버 접속")
     df_users = load_data("users")
+    
     with st.form("login"):
         u = st.text_input("ID")
         p = st.text_input("PW", type="password")
+        
         if st.form_submit_button("로그인"):
             user_match = df_users[(df_users['ID'] == u) & (df_users['PW'] == p)]
+            
             if not user_match.empty:
                 st.session_state.authenticated = True
                 st.session_state.user_role = user_match.iloc[0]['권한']
                 st.session_state.user_name = user_match.iloc[0]['이름']
+                
+                # ✅ [핵심] 주소창에 인증 흔적 기록 (새로고침 대비) ㅋ
+                st.query_params["auth"] = "true"
+                st.query_params["u_name"] = st.session_state.user_name
+                st.query_params["u_role"] = st.session_state.user_role
+                
                 st.success(f"{st.session_state.user_name}님 환영합니다!")
                 time.sleep(1); st.rerun()
-            else: st.error("ID 또는 비밀번호가 올바르지 않습니다.")
+            else:
+                st.error("ID 또는 비밀번호가 올바르지 않습니다.")
     st.stop()
+
+
+# 💡 새로고침 시 세션 정보가 휘발되었을 경우 주소창에서 재복구 ㅋ
+if st.session_state.authenticated and (st.session_state.user_name is None):
+    st.session_state.user_name = st.query_params.get("u_name", "사용자")
+    st.session_state.user_role = st.query_params.get("u_role", "staff")
 
 
 
