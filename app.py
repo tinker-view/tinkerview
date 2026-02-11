@@ -354,13 +354,13 @@ with tabs[1]:
                 if manage_gsheet("reservations", action="delete_res", key=row['성함'], extra={"date": str(row['날짜']), "time": row['시간']}): st.cache_data.clear(); st.rerun()
 
 
-# #6-3. [탭 3] 회원 관리 (버튼 짤림 현상 수정 완료) ㅋ
+# #6-3. [탭 3] 회원 관리 (모바일 최적화 한 줄 내비게이션) ㅋ
 with tabs[2]:
     st.session_state.show_res_modal = False
     st.subheader("👥 회원 관리")
 
 
-    # 💡 신규 등록 버튼
+    # 💡 신규 등록 버튼 (상단 고정)
     if st.button("➕ 새 회원 등록", use_container_width=True): 
         st.session_state.clicked_date = None
         add_member_modal()
@@ -380,7 +380,7 @@ with tabs[2]:
     if not df_m.empty:
         df_disp = df_m.copy()
         
-        # 1. 검색 로직 (대장님 스타일 유지 ㅋ)
+        # 1. 검색 로직
         if s_m:
             df_disp = df_disp[df_disp['성함'].str.contains(s_m, na=False) | df_disp['연락처'].str.contains(s_m, na=False)]
         
@@ -388,7 +388,7 @@ with tabs[2]:
         total_rows = len(df_disp)
 
 
-        # 2. 페이징 계산
+        # 2. 페이징 계산 (슬림 내비게이션 적용) ㅋ
         if "curr_page" not in st.session_state: st.session_state.curr_page = 1
         
         if selected_size == "전체":
@@ -397,35 +397,20 @@ with tabs[2]:
             page_size = int(selected_size)
             total_pages = max((total_rows // page_size) + (1 if total_rows % page_size > 0 else 0), 1)
             
-            if st.session_state.curr_page > total_pages: st.session_state.curr_page = total_pages
-
-
-            # 💡 [버튼 배치 수정] 버튼이 잘리지 않도록 컬럼 간격 최적화 ㅋ
-            st.write("") 
-            # 버튼 9개(<<, <, 1, 2, 3, 4, 5, >, >>) 공간을 넉넉히 확보 ㅋ
-            p_cols = st.columns([0.7, 0.7, 0.5, 0.5, 0.5, 0.5, 0.5, 0.7, 0.7, 4]) 
+            # 💡 [모바일 최적화 한 줄 내비게이션]
+            # 버튼 덩어리 대신 얇은 슬라이더나 숫자 입력기를 사용하여 한 줄로 고정 ㅋ
+            st.write("")
+            nav_col1, nav_col2 = st.columns([1, 4])
             
-            # 처음으로(<<), 이전(<) ㅋ
-            if p_cols[0].button("<<", key="p_first"): st.session_state.curr_page = 1; st.rerun()
-            if p_cols[1].button("<", key="p_prev"): st.session_state.curr_page = max(st.session_state.curr_page - 1, 1); st.rerun()
-
-
-            # 숫자 버튼 (현재 페이지 기준 동적 표시) ㅋ
-            start_p = max(min(st.session_state.curr_page - 2, total_pages - 4), 1)
-            end_p = min(start_p + 4, total_pages)
+            # 페이지 직접 입력 (매우 작게 표시됨) ㅋ
+            new_page = nav_col1.number_input(f"Page", min_value=1, max_value=total_pages, value=st.session_state.curr_page, step=1, key="nav_num")
             
-            for idx, p_num in enumerate(range(start_p, end_p + 1)):
-                btn_type = "primary" if p_num == st.session_state.curr_page else "secondary"
-                if p_cols[idx+2].button(f"{p_num}", type=btn_type, key=f"p_num_{p_num}"):
-                    st.session_state.curr_page = p_num
-                    st.rerun()
-
-
-            # 다음(>), 끝으로(>>) - 컬럼 인덱스 7, 8번에 명확히 배치 ㅋ
-            if p_cols[7].button(">", key="p_next"): st.session_state.curr_page = min(st.session_state.curr_page + 1, total_pages); st.rerun()
-            if p_cols[8].button(">>", key="p_last"): st.session_state.curr_page = total_pages; st.rerun()
+            # 페이지 이동 가이드 ㅋ
+            nav_col2.markdown(f" <br> <div style='font-size:14px; color:#666;'>총 **{total_pages}** 페이지 중 **{new_page}**pg (전체 {total_rows}명)</div>", unsafe_allow_html=True)
             
-            st.caption(f"현재 {st.session_state.curr_page} / {total_pages} 페이지 (총 {total_rows}명)")
+            if new_page != st.session_state.curr_page:
+                st.session_state.curr_page = new_page
+                st.rerun()
 
 
             start_idx = (st.session_state.curr_page - 1) * page_size
@@ -439,7 +424,7 @@ with tabs[2]:
             hide_index=True, 
             on_select="rerun", 
             selection_mode="single-row", 
-            key="mem_table_final_paging"
+            key="mem_table_mobile_v1"
         )
 
 
