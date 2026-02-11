@@ -441,14 +441,103 @@ with tabs[2]:
         
 
 
-# #6-4. [탭 4] 매출 통계 ㅋ
+# #6-4. [탭 4] 매출 통계 (모바일 최적화 페이징 & 엑셀 다운로드 통합) ㅋ
 with tabs[3]:
-    st.session_state.show_res_modal = False # 강제 종료 ㅋ
-    st.subheader("📊 매출 통계")
+    st.session_state.show_res_modal = False
+    st.subheader("📊 매출 통계 및 데이터 추출")
+
+
+    # 💡 검색 및 표시 개수 설정 레이아웃 ㅋ
+    search_col, size_col = st.columns([3, 1])
+    s_s = search_col.text_input("🔍 매출 검색 (성함 또는 상품명)", key="sale_search_tab4")
+    
+    page_size_options = [10, 20, 50, "전체"]
+    selected_size = size_col.selectbox("📄 표시 개수", options=page_size_options, index=0, key="sale_page_size")
+
+
     if not df_s.empty:
-        st.dataframe(df_s, use_container_width=True, hide_index=True)
+        df_disp = df_s.copy()
+        
+        # 1. 검색 필터링 ㅋ
+        if s_s:
+            df_disp = df_disp[df_disp['성함'].str.contains(s_s, na=False) | df_disp['상품명'].str.contains(s_s, na=False)]
+        
+        # 날짜순 정렬 (최신순) ㅋ
+        df_disp['날짜'] = pd.to_datetime(df_disp['날짜']).dt.date
+        df_disp = df_disp.sort_values(by='날짜', ascending=False)
+        total_rows = len(df_disp)
+
+
+        # 2. 페이징 계산 (슬림 내비게이션) ㅋ
+        if "sale_curr_page" not in st.session_state: st.session_state.sale_curr_page = 1
+        
+        if selected_size == "전체":
+            display_df = df_disp
+        else:
+            page_size = int(selected_size)
+            total_pages = max((total_rows // page_size) + (1 if total_rows % page_size > 0 else 0), 1)
+            
+            st.write("")
+            nav_col1, nav_col2 = st.columns([1, 4])
+            
+            # 페이지 직접 입력 ㅋ
+            new_page = nav_col1.number_input(f"Page ", min_value=1, max_value=total_pages, value=st.session_state.sale_curr_page, step=1, key="sale_nav_num")
+            
+            # 정보 표시 ㅋ
+            nav_col2.markdown(f" <br> <div style='font-size:14px; color:#666;'>총 **{total_pages}** 페이지 중 **{new_page}**pg (매출 {total_rows}건)</div>", unsafe_allow_html=True)
+            
+            if new_page != st.session_state.sale_curr_page:
+                st.session_state.sale_curr_page = new_page
+                st.rerun()
+
+            start_idx = (st.session_state.sale_curr_page - 1) * page_size
+            display_df = df_disp.iloc[start_idx : start_idx + page_size]
+
+
+        # 3. 데이터프레임 출력 ㅋ
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        
+        # 4. 관리자용 매출 합계 표시 ㅋ
         if st.session_state.user_role == "admin":
-            st.metric("총 정산 합계", f"{pd.to_numeric(df_s['정산'].apply(lambda x: str(x).replace(',','')), errors='coerce').sum():,.0f}원")
+            total_rev = pd.to_numeric(df_disp['정산'].apply(lambda x: str(x).replace(',','')), errors='coerce').sum()
+            st.metric("검색 결과 총 합계", f"{total_rev:,.0f}원")
+
+
+        st.divider()
+
+
+        # 5. 엑셀 다운로드 로직 (원본 유지) ㅋ
+        st.write("📥 **데이터 내보내기 (Excel)**")
+        try:
+            import io
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                # 회원명부 시트 ㅋ
+                df_m_clean = df_m.copy()
+                df_m_clean['연락처'] = df_m_clean['연락처'].apply(format_phone)
+                df_m_clean.to_excel(writer, index=False, sheet_name='1_회원명부')
+                
+                # 매출내역 시트 ㅋ
+                df_s_sorted = df_s.copy()
+                df_s_sorted = df_s_sorted.sort_values(by='날짜', ascending=False)
+                df_s_sorted.to_excel(writer, index=False, sheet_name='2_일자별매출내역')
+            
+            processed_data = output.getvalue()
+            st.download_button(
+                label="📁 [엑셀] 회원정보 & 매출내역 통합본 다운로드",
+                data=processed_data,
+                file_name=f"K-View_데이터관리_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        except Exception as e:
+            st.error(f"엑셀 생성 중 오류: {e}")
+
+
+    else:
+        st.info("기록된 매출 내역이 없습니다. ㅋ")
+
+
 
 
 # #6-5. [탭 5] 재고 관리 ㅋ
