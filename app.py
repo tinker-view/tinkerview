@@ -324,9 +324,11 @@ st.markdown(f"""
 tabs = st.tabs(["📅 달력", "📋 예약", "👥 회원", "📊 매출", "📦 재고"])
 
 
-# #6-1. [탭 1] 스케줄 달력 (팝업 간섭 방지 및 클릭 연동) ㅋ
+# #6-1. [탭 1] 스케줄 달력 (중복 클릭 및 타 탭 간섭 방지) ㅋ
 with tabs[0]:
-    if "show_res_modal" not in st.session_state: st.session_state.show_res_modal = False
+    # 💡 팝업 상태 초기화 ㅋ
+    if "show_res_modal" not in st.session_state: 
+        st.session_state.show_res_modal = False
 
 
     events = []
@@ -352,18 +354,22 @@ with tabs[0]:
     }
 
 
-    state = calendar(events=events, options=cal_opt, key="kview_main_cal_v3")
+    # 💡 [핵심] 달력 호출 - state 값을 읽은 직후에 바로 처리 ㅋ
+    state = calendar(events=events, options=cal_opt, key="kview_final_cal_v4")
 
 
+    # 💥 [중요] 콜백 데이터가 있을 때만 팝업을 띄우고, 띄운 직후엔 데이터를 휘발시킵니다 ㅋ
     if state.get("callback") == "dateClick":
-        new_date = state["dateClick"]["date"]
-        if st.session_state.get("clicked_date") != new_date:
-            st.session_state.clicked_date = new_date
+        # 💡 예전 클릭과 중복되지 않게 처리하여 무한 루프 방지 ㅋ
+        click_data = state["dateClick"]["date"]
+        if st.session_state.get("last_processed_click") != click_data:
+            st.session_state.clicked_date = click_data
+            st.session_state.last_processed_click = click_data # 👈 방어막 설치 ㅋ
             st.session_state.show_res_modal = True
             st.rerun()
 
 
-    # 💡 팝업 호출을 탭 내부로 제한하여 다른 탭 간섭 방지 ㅋ
+    # 💡 팝업 호출: 스위치가 켜져 있을 때만 딱 한 번 실행 ㅋ
     if st.session_state.show_res_modal and st.session_state.get("clicked_date"):
         add_res_modal(st.session_state.clicked_date, df_m)
         
